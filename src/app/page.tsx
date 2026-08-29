@@ -15,7 +15,7 @@ interface HotDeal {
   thumbnail: string | null;
 }
 
-const sources = ['전체', '뽐뿌', '클리앙', '쿨앤조이', '에펨코리아'];
+const sources = ['전체', '쿨앤조이', '퀘이사존', '루리웹', '아카라이브', '다나와'];
 
 export default function Home() {
   const [deals, setDeals] = useState<HotDeal[]>([]);
