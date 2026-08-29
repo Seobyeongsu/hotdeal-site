@@ -1,11 +1,5 @@
-import Parser from 'rss-parser';
-
-const parser = new Parser({
-  timeout: 5000,
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-  },
-});
+import axios from 'axios';
+import { parseString } from 'xml2js';
 
 export interface HotDeal {
   id: string;
@@ -17,85 +11,105 @@ export interface HotDeal {
   thumbnail: string | null;
 }
 
-// 뽐뿌 핫딜 RSS
+async function fetchRSS(url: string): Promise<any[]> {
+  try {
+    const response = await axios.get(url, {
+      timeout: 8000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      responseType: 'text',
+    });
+
+    return new Promise((resolve) => {
+      parseString(response.data, (err: any, result: any) => {
+        if (err) {
+          console.error('XML 파싱 에러:', err);
+          resolve([]);
+          return;
+        }
+
+        try {
+          // RSS 2.0
+          if (result?.rss?.channel?.[0]?.item) {
+            resolve(result.rss.channel[0].item);
+            return;
+          }
+          // Atom
+          if (result?.feed?.entry) {
+            resolve(result.feed.entry);
+            return;
+          }
+          resolve([]);
+        } catch {
+          resolve([]);
+        }
+      });
+    });
+  } catch (error) {
+    console.error('RSS 가져오기 실패:', url, error);
+    return [];
+  }
+}
+
+// 뽐뿌
 async function fetchPpomppu(): Promise<HotDeal[]> {
-  try {
-    const feed = await parser.parseURL('https://www.ppomppu.co.kr/rss/rss_board.php?id=ppomppu');
-    return feed.items.slice(0, 20).map((item, index) => ({
-      id: `ppomppu_${index}`,
-      title: item.title || '',
-      url: item.link || '',
-      source: '뽐뿌',
-      price: extractPrice(item.title || ''),
-      date: item.pubDate || new Date().toISOString(),
-      thumbnail: null,
-    }));
-  } catch (error) {
-    console.error('뽐뿌 RSS 에러:', error);
-    return [];
-  }
+  const items = await fetchRSS('https://www.ppomppu.co.kr/rss/rss_board.php?id=ppomppu');
+  return items.slice(0, 30).map((item, i) => ({
+    id: `ppomppu_${i}`,
+    title: item.title?.[0] || '',
+    url: item.link?.[0] || '',
+    source: '뽐뿌',
+    price: extractPrice(item.title?.[0] || ''),
+    date: item.pubDate?.[0] || new Date().toISOString(),
+    thumbnail: null,
+  }));
 }
 
-// 클리앙 핫딜 RSS
+// 클리앙
 async function fetchClien(): Promise<HotDeal[]> {
-  try {
-    const feed = await parser.parseURL('https://www.clien.net/service/board/jirum/rss');
-    return feed.items.slice(0, 20).map((item, index) => ({
-      id: `clien_${index}`,
-      title: item.title || '',
-      url: item.link || '',
-      source: '클리앙',
-      price: extractPrice(item.title || ''),
-      date: item.pubDate || new Date().toISOString(),
-      thumbnail: null,
-    }));
-  } catch (error) {
-    console.error('클리앙 RSS 에러:', error);
-    return [];
-  }
+  const items = await fetchRSS('https://www.clien.net/service/board/jirum/rss');
+  return items.slice(0, 30).map((item, i) => ({
+    id: `clien_${i}`,
+    title: item.title?.[0] || '',
+    url: item.link?.[0] || '',
+    source: '클리앙',
+    price: extractPrice(item.title?.[0] || ''),
+    date: item.pubDate?.[0] || new Date().toISOString(),
+    thumbnail: null,
+  }));
 }
 
-// 쿨앤조이 핫딜 RSS
+// 쿨앤조이
 async function fetchCoolenjoy(): Promise<HotDeal[]> {
-  try {
-    const feed = await parser.parseURL('https://coolenjoy.net/bbs/rss.php?bo_table=jirum');
-    return feed.items.slice(0, 20).map((item, index) => ({
-      id: `coolenjoy_${index}`,
-      title: item.title || '',
-      url: item.link || '',
-      source: '쿨앤조이',
-      price: extractPrice(item.title || ''),
-      date: item.pubDate || new Date().toISOString(),
-      thumbnail: null,
-    }));
-  } catch (error) {
-    console.error('쿨앤조이 RSS 에러:', error);
-    return [];
-  }
+  const items = await fetchRSS('https://coolenjoy.net/bbs/rss.php?bo_table=jirum');
+  return items.slice(0, 30).map((item, i) => ({
+    id: `coolenjoy_${i}`,
+    title: item.title?.[0] || '',
+    url: item.link?.[0] || '',
+    source: '쿨앤조이',
+    price: extractPrice(item.title?.[0] || ''),
+    date: item.pubDate?.[0] || new Date().toISOString(),
+    thumbnail: null,
+  }));
 }
 
-// 에펨코리아 핫딜 RSS
+// 에펨코리아
 async function fetchFmkorea(): Promise<HotDeal[]> {
-  try {
-    const feed = await parser.parseURL('https://www.fmkorea.com/index.php?mid=hotdeal&act=rss');
-    return feed.items.slice(0, 20).map((item, index) => ({
-      id: `fmkorea_${index}`,
-      title: item.title || '',
-      url: item.link || '',
-      source: '에펨코리아',
-      price: extractPrice(item.title || ''),
-      date: item.pubDate || new Date().toISOString(),
-      thumbnail: null,
-    }));
-  } catch (error) {
-    console.error('에펨코리아 RSS 에러:', error);
-    return [];
-  }
+  const items = await fetchRSS('https://www.fmkorea.com/index.php?mid=hotdeal&act=rss');
+  return items.slice(0, 30).map((item, i) => ({
+    id: `fmkorea_${i}`,
+    title: item.title?.[0] || '',
+    url: item.link?.[0] || '',
+    source: '에펨코리아',
+    price: extractPrice(item.title?.[0] || ''),
+    date: item.pubDate?.[0] || new Date().toISOString(),
+    thumbnail: null,
+  }));
 }
 
 // 제목에서 가격 추출
 function extractPrice(title: string): number | null {
-  // 123,456원 또는 123456원 패턴
   const match = title.match(/[\d,]+원/);
   if (match) {
     const priceStr = match[0].replace(/원/g, '').replace(/,/g, '');
@@ -107,7 +121,7 @@ function extractPrice(title: string): number | null {
 
 // 전체 핫딜 가져오기
 export async function fetchAllHotDeals(): Promise<HotDeal[]> {
-  const [ppomppu, clien, coolenjoy, fmkorea] = await Promise.allSettled([
+  const results = await Promise.allSettled([
     fetchPpomppu(),
     fetchClien(),
     fetchCoolenjoy(),
@@ -116,13 +130,20 @@ export async function fetchAllHotDeals(): Promise<HotDeal[]> {
 
   const allDeals: HotDeal[] = [];
 
-  if (ppomppu.status === 'fulfilled') allDeals.push(...ppomppu.value);
-  if (clien.status === 'fulfilled') allDeals.push(...clien.value);
-  if (coolenjoy.status === 'fulfilled') allDeals.push(...coolenjoy.value);
-  if (fmkorea.status === 'fulfilled') allDeals.push(...fmkorea.value);
+  results.forEach((result) => {
+    if (result.status === 'fulfilled') {
+      allDeals.push(...result.value);
+    }
+  });
 
   // 날짜순 정렬
-  allDeals.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  allDeals.sort((a, b) => {
+    try {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    } catch {
+      return 0;
+    }
+  });
 
   return allDeals;
 }
