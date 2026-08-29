@@ -1,66 +1,55 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import ProductCard from '@/components/ProductCard';
-import CategoryFilter from '@/components/CategoryFilter';
-import SortSelect from '@/components/SortSelect';
+import HotDealCard from '@/components/HotDealCard';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
-interface Product {
-  id: number;
-  name: string;
-  brand: string;
-  category: string;
-  image_url: string;
-  current_price: number;
-  original_price: number;
-  discount_rate: number;
-  unit_price: number;
-  weight: string;
-  min_price: number;
-  max_price: number;
+interface HotDeal {
+  id: string;
+  title: string;
+  url: string;
+  source: string;
+  price: number | null;
+  date: string;
+  thumbnail: string | null;
 }
 
-const categories = [
-  '전체',
-  '디지털/가전',
-  '가구/인테리어',
-  '출산/육아',
-  '식품/생필품',
-  '뷰티/미용',
-  '의류/잡화',
-  '스포츠/건강',
-  '반려동물',
-];
+const sources = ['전체', '뽐뿌', '클리앙', '쿨앤조이', '에펨코리아'];
 
 export default function Home() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState('전체');
-  const [sortBy, setSortBy] = useState('price_asc');
+  const [deals, setDeals] = useState<HotDeal[]>([]);
+  const [selectedSource, setSelectedSource] = useState('전체');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchProducts();
-  }, [selectedCategory, sortBy]);
+    fetchDeals();
+  }, [selectedSource]);
 
-  const fetchProducts = async () => {
+  const fetchDeals = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (selectedCategory !== '전체') {
-        params.set('category', selectedCategory);
+      if (selectedSource !== '전체') {
+        params.set('source', selectedSource);
       }
-      params.set('sort', sortBy);
+      if (search) {
+        params.set('search', search);
+      }
 
       const response = await fetch(`/api/products?${params}`);
       const data = await response.json();
-      setProducts(data);
+      setDeals(data);
     } catch (error) {
-      console.error('Failed to fetch products:', error);
+      console.error('Failed to fetch deals:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = () => {
+    fetchDeals();
   };
 
   return (
@@ -68,26 +57,52 @@ export default function Home() {
       <Header />
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
-        <CategoryFilter
-          categories={categories}
-          selected={selectedCategory}
-          onSelect={setSelectedCategory}
-        />
-
-        <div className="flex justify-end mb-4">
-          <SortSelect value={sortBy} onChange={setSortBy} />
+        {/* 소스 필터 */}
+        <div className="flex gap-2 overflow-x-auto pb-4 mb-4">
+          {sources.map((source) => (
+            <button
+              key={source}
+              onClick={() => setSelectedSource(source)}
+              className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition ${
+                selectedSource === source
+                  ? 'bg-white text-black'
+                  : 'bg-[#1e1e2e] text-gray-300 hover:bg-[#2a2a3e]'
+              }`}
+            >
+              {source}
+            </button>
+          ))}
         </div>
 
+        {/* 검색 */}
+        <div className="flex gap-2 mb-6">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="키워드 검색..."
+            className="flex-1 bg-[#1e1e2e] border border-[#2a2a3e] rounded-lg px-4 py-2 focus:outline-none focus:border-white"
+          />
+          <button
+            onClick={handleSearch}
+            className="bg-white text-black px-6 py-2 rounded-lg font-medium hover:bg-gray-200 transition"
+          >
+            검색
+          </button>
+        </div>
+
+        {/* 핫딜 목록 */}
         {loading ? (
-          <div className="text-center py-20 text-gray-400">로딩 중...</div>
-        ) : products.length === 0 ? (
+          <div className="text-center py-20 text-gray-400">핫딜 불러오는 중...</div>
+        ) : deals.length === 0 ? (
           <div className="text-center py-20 text-gray-400">
-            상품이 없습니다. 데이터를 수집 중입니다.
+            핫딜이 없습니다.잠시 후 다시 시도해보세요.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+          <div className="space-y-4">
+            {deals.map((deal) => (
+              <HotDealCard key={deal.id} deal={deal} />
             ))}
           </div>
         )}
