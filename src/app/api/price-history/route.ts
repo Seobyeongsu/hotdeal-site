@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import getDb from '@/lib/db';
+import { getPriceHistory } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -10,18 +10,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
   }
 
-  const db = getDb();
-
-  const daysAgo = parseInt(period) * 30;
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - daysAgo);
-
-  const history = db.prepare(`
-    SELECT price, recorded_at
-    FROM price_history
-    WHERE product_id = ? AND recorded_at >= ?
-    ORDER BY recorded_at ASC
-  `).all(productId, startDate.toISOString());
-
+  const history = getPriceHistory(parseInt(productId), period);
   return NextResponse.json(history);
 }

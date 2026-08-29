@@ -8,7 +8,6 @@ export interface Product {
   current_price: number;
   original_price: number;
   discount_rate: number;
-  protein_per_serving: number;
   serving_size: string;
   weight: string;
   unit_price: number;
