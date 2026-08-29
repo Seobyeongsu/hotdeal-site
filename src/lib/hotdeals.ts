@@ -1,220 +1,246 @@
-import axios from 'axios';
-import { parseString } from 'xml2js';
+import crypto from 'crypto';
+
+// ==================== 쿠팡 파트너스 API ====================
+
+const COUPANG_ACCESS_KEY = process.env.COUPANG_ACCESS_KEY || '';
+const COUPANG_SECRET_KEY = process.env.COUPANG_SECRET_KEY || '';
+const COUPANG_AFFILIATE_ID = process.env.COUPANG_AFFILIATE_ID || '';
+
+function generateCoupangHmac(method: string, url: string, secretKey: string): string {
+  const now = Math.floor(Date.now() / 1000);
+  const message = `${method}${url}${now}`;
+  const hmac = crypto.createHmac('sha256', secretKey);
+  hmac.update(message);
+  return hmac.digest('hex');
+}
+
+export async function searchCoupang(keyword: string, limit = 20) {
+  const urlPath = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/search?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
+  const hmac = generateCoupangHmac('GET', urlPath, COUPANG_SECRET_KEY);
+  const now = Math.floor(Date.now() / 1000);
+
+  try {
+    const response = await fetch(`https://api-gateway.coupang.com${urlPath}`, {
+      headers: {
+        'Authorization': `${COUPANG_ACCESS_KEY}:${hmac}`,
+        'Timestamp': now.toString(),
+      },
+    });
+
+    if (!response.ok) {
+      console.error('쿠팡 API 에러:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    return (data.data?.products || []).map((p: any) => ({
+      id: `coupang_${p.productId}`,
+      name: p.productName,
+      brand: p.brandName || '',
+      category: p.categoryName || '쿠팡',
+      image: p.productImage || '',
+      price: p.price?.minPrice || 0,
+      originalPrice: p.price?.maxPrice || 0,
+      discountRate: p.price?.discountRate || 0,
+      url: p.productUrl || '',
+      source: '쿠팡',
+      rating: 0,
+      reviewCount: 0,
+    }));
+  } catch (error) {
+    console.error('쿠팡 API 호출 실패:', error);
+    return [];
+  }
+}
+
+export async function fetchCoupangTodayDeals() {
+  const urlPath = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/best?categoryId=0&limit=30`;
+  const hmac = generateCoupangHmac('GET', urlPath, COUPANG_SECRET_KEY);
+  const now = Math.floor(Date.now() / 1000);
+
+  try {
+    const response = await fetch(`https://api-gateway.coupang.com${urlPath}`, {
+      headers: {
+        'Authorization': `${COUPANG_ACCESS_KEY}:${hmac}`,
+        'Timestamp': now.toString(),
+      },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    return (data.data?.products || []).map((p: any) => ({
+      id: `coupang_${p.productId}`,
+      name: p.productName,
+      brand: p.brandName || '',
+      category: p.categoryName || '쿠팡',
+      image: p.productImage || '',
+      price: p.price?.minPrice || 0,
+      originalPrice: p.price?.maxPrice || 0,
+      discountRate: p.price?.discountRate || 0,
+      url: p.productUrl || '',
+      source: '쿠팡',
+      rating: 0,
+      reviewCount: 0,
+    }));
+  } catch (error) {
+    console.error('쿠팡 베스트 API 실패:', error);
+    return [];
+  }
+}
+
+// ==================== 알리익스프레스 API ====================
+
+const ALI_APP_KEY = process.env.ALI_APP_KEY || '';
+const ALI_APP_SECRET = process.env.ALI_APP_SECRET || '';
+
+export async function searchAliExpress(keyword: string, limit = 20) {
+  // AliExpress Affiliate API
+  const url = '/affiliates/product/query';
+
+  try {
+    const params = new URLSearchParams({
+      keywords: keyword,
+      target_currency: 'KRW',
+      target_language: 'KR',
+      sort: 'SALE_PRICE_ASC',
+      limit: limit.toString(),
+    });
+
+    const response = await fetch(`https://api-sg.aliexpress.com/sync${url}?${params}`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error('알리 API 에러:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    return (data?.aliexpress_affiliate_product_query_response?.resp_result?.result?.products || []).map((p: any) => ({
+      id: `ali_${p.product_id}`,
+      name: p.product_title,
+      brand: p.first_level_category_name || '알리익스프레스',
+      category: p.first_level_category_name || '알리익스프레스',
+      image: p.product_main_image_url || '',
+      price: parseFloat(p.target_sale_price) || 0,
+      originalPrice: parseFloat(p.target_original_price) || 0,
+      discountRate: p.discount || 0,
+      url: p.product_detail_url || '',
+      source: '알리익스프레스',
+      rating: parseFloat(p.average_star) || 0,
+      reviewCount: p.total_tranpro || 0,
+    }));
+  } catch (error) {
+    console.error('알리 API 호출 실패:', error);
+    return [];
+  }
+}
+
+// ==================== 통합 ====================
 
 export interface HotDeal {
   id: string;
-  title: string;
+  name: string;
+  brand: string;
+  category: string;
+  image: string;
+  price: number;
+  originalPrice: number;
+  discountRate: number;
   url: string;
   source: string;
-  price: number | null;
-  date: string;
+  rating: number;
+  reviewCount: number;
 }
 
-async function fetchRSS(url: string): Promise<any[]> {
-  try {
-    const response = await axios.get(url, {
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/rss+xml, application/xml, text/xml, */*',
-        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8',
-      },
-      responseType: 'text',
-      maxRedirects: 5,
-    });
+// 인기 카테고리 키워드
+const KEYWORDS = [
+  '노트북', '이어폰', '충전기', '키보드', '마우스',
+  '모니터', 'SSD', '메모리', ' 태블릿', '스마트워치',
+  '블루투스', 'USB', '헤드폰', '스피커', '캠핑',
+  '운동', '의류', '신발', '가방', '주방',
+];
 
-    return new Promise((resolve) => {
-      parseString(response.data, { explicitArray: true }, (err: any, result: any) => {
-        if (err) {
-          console.error('XML 파싱 에러:', url, err);
-          resolve([]);
-          return;
-        }
-
-        try {
-          if (result?.rss?.channel?.[0]?.item) {
-            resolve(result.rss.channel[0].item);
-          } else if (result?.feed?.entry) {
-            resolve(result.feed.entry);
-          } else {
-            resolve([]);
-          }
-        } catch {
-          resolve([]);
-        }
-      });
-    });
-  } catch (error: any) {
-    console.error('RSS 가져오기 실패:', url, error?.message);
-    return [];
-  }
-}
-
-// HTML에서 핫딜 목록 파싱
-async function fetchHTML(url: string, selector: string): Promise<any[]> {
-  try {
-    const response = await axios.get(url, {
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'ko-KR,ko;q=0.9',
-      },
-      responseType: 'text',
-    });
-
-    const items: any[] = [];
-    const titleRegex = /<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi;
-    let match;
-
-    while ((match = titleRegex.exec(response.data)) !== null) {
-      if (match[2].length > 10) {
-        items.push({ url: match[1], title: match[2].trim() });
-      }
-      if (items.length >= 20) break;
-    }
-
-    return items;
-  } catch (error: any) {
-    console.error('HTML 가져오기 실패:', url, error?.message);
-    return [];
-  }
-}
-
-// 쿨앤조이 (RSS 정상 작동)
-async function fetchCoolenjoy(): Promise<HotDeal[]> {
-  const items = await fetchRSS('https://coolenjoy.net/bbs/rss.php?bo_table=jirum');
-  return items.slice(0, 30).map((item, i) => ({
-    id: `coolenjoy_${i}`,
-    title: cleanText(item.title?.[0] || ''),
-    url: cleanUrl(item.link?.[0] || ''),
-    source: '쿨앤조이',
-    price: extractPrice(item.title?.[0] || ''),
-    date: item.pubDate?.[0] || new Date().toISOString(),
-  }));
-}
-
-// 퀘이사존 (RSS)
-async function fetchQuasarzone(): Promise<HotDeal[]> {
-  const items = await fetchRSS('https://quasarzone.com/bbs/qb_saleinfo/rss');
-  return items.slice(0, 30).map((item, i) => ({
-    id: `quasarzone_${i}`,
-    title: cleanText(item.title?.[0] || ''),
-    url: cleanUrl(item.link?.[0] || ''),
-    source: '퀘이사존',
-    price: extractPrice(item.title?.[0] || ''),
-    date: item.pubDate?.[0] || new Date().toISOString(),
-  }));
-}
-
-// 루리웹 (RSS)
-async function fetchRuliweb(): Promise<HotDeal[]> {
-  const items = await fetchRSS('https://bbs.ruliweb.com/community/board/300143/rss');
-  return items.slice(0, 30).map((item, i) => ({
-    id: `ruliweb_${i}`,
-    title: cleanText(item.title?.[0] || ''),
-    url: cleanUrl(item.link?.[0] || ''),
-    source: '루리웹',
-    price: extractPrice(item.title?.[0] || ''),
-    date: item.pubDate?.[0] || new Date().toISOString(),
-  }));
-}
-
-// 아카라이브 (RSS)
-async function fetchArca(): Promise<HotDeal[]> {
-  const items = await fetchRSS('https://arca.live/b/hotdeal/rss');
-  return items.slice(0, 30).map((item, i) => ({
-    id: `arca_${i}`,
-    title: cleanText(item.title?.[0] || ''),
-    url: cleanUrl(item.link?.[0] || ''),
-    source: '아카라이브',
-    price: extractPrice(item.title?.[0] || ''),
-    date: item.pubDate?.[0] || new Date().toISOString(),
-  }));
-}
-
-// 다나와 특가 (RSS)
-async function fetchDanawa(): Promise<HotDeal[]> {
-  const items = await fetchRSS('https://www.danawa.com/rss/?Work=record&Serial=819234');
-  return items.slice(0, 30).map((item, i) => ({
-    id: `danawa_${i}`,
-    title: cleanText(item.title?.[0] || ''),
-    url: cleanUrl(item.link?.[0] || ''),
-    source: '다나와',
-    price: extractPrice(item.title?.[0] || ''),
-    date: item.pubDate?.[0] || new Date().toISOString(),
-  }));
-}
-
-// 텍스트 정리
-function cleanText(text: string): string {
-  return text
-    .replace(/<[^>]*>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function cleanUrl(url: string): string {
-  return url.replace(/&amp;/g, '&').trim();
-}
-
-// 제목에서 가격 추출
-function extractPrice(title: string): number | null {
-  const cleaned = cleanText(title);
-  const match = cleaned.match(/[\d,]+원/);
-  if (match) {
-    const priceStr = match[0].replace(/원/g, '').replace(/,/g, '');
-    const price = parseInt(priceStr, 10);
-    if (isNaN(price) || price < 100) return null;
-    return price;
-  }
-  return null;
-}
-
-// 전체 핫딜 가져오기
 export async function fetchAllHotDeals(): Promise<HotDeal[]> {
-  const results = await Promise.allSettled([
-    fetchCoolenjoy(),
-    fetchQuasarzone(),
-    fetchRuliweb(),
-    fetchArca(),
-    fetchDanawa(),
-  ]);
-
   const allDeals: HotDeal[] = [];
 
-  results.forEach((result, i) => {
-    if (result.status === 'fulfilled') {
-      console.log(`소스 ${i}: ${result.value.length}개`);
-      allDeals.push(...result.value);
-    } else {
-      console.error(`소스 ${i} 실패:`, result.reason);
+  // 쿠팡 API 키가 있으면 실행
+  if (COUPANG_ACCESS_KEY && COUPANG_SECRET_KEY) {
+    console.log('쿠팡 API 호출 중...');
+    const coupangDeals = await fetchCoupangTodayDeals();
+    allDeals.push(...coupangDeals);
+    console.log(`쿠팡: ${coupangDeals.length}개`);
+
+    // 랜덤 키워드 3개로 검색
+    const shuffled = KEYWORDS.sort(() => Math.random() - 0.5).slice(0, 3);
+    for (const keyword of shuffled) {
+      const results = await searchCoupang(keyword, 10);
+      allDeals.push(...results);
     }
-  });
+  }
+
+  // 알리익스프레스 API 키가 있으면 실행
+  if (ALI_APP_KEY && ALI_APP_SECRET) {
+    console.log('알리 API 호출 중...');
+    const shuffled = KEYWORDS.sort(() => Math.random() - 0.5).slice(0, 3);
+    for (const keyword of shuffled) {
+      const results = await searchAliExpress(keyword, 10);
+      allDeals.push(...results);
+    }
+  }
+
+  // API 키가 없으면 샘플 데이터 반환
+  if (allDeals.length === 0) {
+    console.log('API 키 미설정 - 샘플 데이터 반환');
+    return getSampleDeals();
+  }
+
+  // 할인율 높은 순 정렬
+  allDeals.sort((a, b) => b.discountRate - a.discountRate);
 
   // 중복 제거
   const seen = new Set<string>();
-  const uniqueDeals = allDeals.filter((deal) => {
-    const key = deal.title.substring(0, 30);
+  return allDeals.filter((deal) => {
+    const key = deal.name.substring(0, 20);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
 
-  // 날짜순 정렬
-  uniqueDeals.sort((a, b) => {
-    try {
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    } catch {
-      return 0;
-    }
-  });
-
-  console.log(`총 핫딜: ${uniqueDeals.length}개`);
-  return uniqueDeals;
+// API 키가 없을 때 보여줄 샘플 데이터
+function getSampleDeals(): HotDeal[] {
+  return [
+    {
+      id: 'sample_1',
+      name: '쿠팡 파트너스 API 키를 설정하세요',
+      brand: '설정 필요',
+      category: '안내',
+      image: '',
+      price: 0,
+      originalPrice: 0,
+      discountRate: 0,
+      url: 'https://partners.coupang.com',
+      source: '쿠팡',
+      rating: 0,
+      reviewCount: 0,
+    },
+    {
+      id: 'sample_2',
+      name: '알리익스프레스 API 키를 설정하세요',
+      brand: '설정 필요',
+      category: '안내',
+      image: '',
+      price: 0,
+      originalPrice: 0,
+      discountRate: 0,
+      url: 'https://developers.aliexpress.com',
+      source: '알리익스프레스',
+      rating: 0,
+      reviewCount: 0,
+    },
+  ];
 }

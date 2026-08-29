@@ -1,21 +1,26 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import HotDealCard from '@/components/HotDealCard';
+import DealCard from '@/components/DealCard';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
 interface HotDeal {
   id: string;
-  title: string;
+  name: string;
+  brand: string;
+  category: string;
+  image: string;
+  price: number;
+  originalPrice: number;
+  discountRate: number;
   url: string;
   source: string;
-  price: number | null;
-  date: string;
-  thumbnail: string | null;
+  rating: number;
+  reviewCount: number;
 }
 
-const sources = ['전체', '쿨앤조이', '퀘이사존', '루리웹', '아카라이브', '다나와'];
+const sources = ['전체', '쿠팡', '알리익스프레스'];
 
 export default function Home() {
   const [deals, setDeals] = useState<HotDeal[]>([]);
@@ -81,7 +86,7 @@ export default function Home() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="키워드 검색..."
+            placeholder="키워드 검색 (예: 노트북, 이어폰, 충전기...)"
             className="flex-1 bg-[#1e1e2e] border border-[#2a2a3e] rounded-lg px-4 py-2 focus:outline-none focus:border-white"
           />
           <button
@@ -94,15 +99,15 @@ export default function Home() {
 
         {/* 핫딜 목록 */}
         {loading ? (
-          <div className="text-center py-20 text-gray-400">핫딜 불러오는 중...</div>
+          <div className="text-center py-20 text-gray-400">할인 상품 불러오는 중...</div>
         ) : deals.length === 0 ? (
           <div className="text-center py-20 text-gray-400">
-            핫딜이 없습니다.잠시 후 다시 시도해보세요.
+            상품이 없습니다.API 키를 설정하거나 잠시 후 다시 시도해보세요.
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {deals.map((deal) => (
-              <HotDealCard key={deal.id} deal={deal} />
+              <DealCard key={deal.id} deal={deal} />
             ))}
           </div>
         )}
