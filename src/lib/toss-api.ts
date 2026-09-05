@@ -50,7 +50,7 @@ export async function getTossToken(force = false): Promise<string> {
   if (!res.ok || !data.access_token) {
     throw new Error(`토큰 발급 실패 (${res.status}): ${data.error || 'unknown'}`);
   }
-  const expiresAt = Date.now() + ((data.expires_in || 31535999) - 86_400) * 1000;
+  const expiresAt = Date.now() + Math.max(60, (data.expires_in || 3600) - 300) * 1000;
   try {
     await kvSet(TOKEN_CACHE_KEY, JSON.stringify({ token: data.access_token, expiresAt }));
   } catch {
