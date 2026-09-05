@@ -1,146 +1,3 @@
-import crypto from 'crypto';
-
-// ==================== 쿠팡 파트너스 API ====================
-
-const COUPANG_ACCESS_KEY = process.env.COUPANG_ACCESS_KEY || '';
-const COUPANG_SECRET_KEY = process.env.COUPANG_SECRET_KEY || '';
-const COUPANG_AFFILIATE_ID = process.env.COUPANG_AFFILIATE_ID || '';
-
-function generateCoupangHmac(method: string, url: string, secretKey: string): string {
-  const now = Math.floor(Date.now() / 1000);
-  const message = `${method}${url}${now}`;
-  const hmac = crypto.createHmac('sha256', secretKey);
-  hmac.update(message);
-  return hmac.digest('hex');
-}
-
-export async function searchCoupang(keyword: string, limit = 20) {
-  const urlPath = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/search?keyword=${encodeURIComponent(keyword)}&limit=${limit}`;
-  const hmac = generateCoupangHmac('GET', urlPath, COUPANG_SECRET_KEY);
-  const now = Math.floor(Date.now() / 1000);
-
-  try {
-    const response = await fetch(`https://api-gateway.coupang.com${urlPath}`, {
-      headers: {
-        'Authorization': `${COUPANG_ACCESS_KEY}:${hmac}`,
-        'Timestamp': now.toString(),
-      },
-    });
-
-    if (!response.ok) {
-      console.error('쿠팡 API 에러:', response.status);
-      return [];
-    }
-
-    const data = await response.json();
-    return (data.data?.products || []).map((p: any) => ({
-      id: `coupang_${p.productId}`,
-      name: p.productName,
-      brand: p.brandName || '',
-      category: p.categoryName || '쿠팡',
-      image: p.productImage || '',
-      price: p.price?.minPrice || 0,
-      originalPrice: p.price?.maxPrice || 0,
-      discountRate: p.price?.discountRate || 0,
-      url: p.productUrl || '',
-      source: '쿠팡',
-      rating: 0,
-      reviewCount: 0,
-    }));
-  } catch (error) {
-    console.error('쿠팡 API 호출 실패:', error);
-    return [];
-  }
-}
-
-export async function fetchCoupangTodayDeals() {
-  const urlPath = `/v2/providers/affiliate_open_api/apis/openapi/v1/products/best?categoryId=0&limit=30`;
-  const hmac = generateCoupangHmac('GET', urlPath, COUPANG_SECRET_KEY);
-  const now = Math.floor(Date.now() / 1000);
-
-  try {
-    const response = await fetch(`https://api-gateway.coupang.com${urlPath}`, {
-      headers: {
-        'Authorization': `${COUPANG_ACCESS_KEY}:${hmac}`,
-        'Timestamp': now.toString(),
-      },
-    });
-
-    if (!response.ok) return [];
-
-    const data = await response.json();
-    return (data.data?.products || []).map((p: any) => ({
-      id: `coupang_${p.productId}`,
-      name: p.productName,
-      brand: p.brandName || '',
-      category: p.categoryName || '쿠팡',
-      image: p.productImage || '',
-      price: p.price?.minPrice || 0,
-      originalPrice: p.price?.maxPrice || 0,
-      discountRate: p.price?.discountRate || 0,
-      url: p.productUrl || '',
-      source: '쿠팡',
-      rating: 0,
-      reviewCount: 0,
-    }));
-  } catch (error) {
-    console.error('쿠팡 베스트 API 실패:', error);
-    return [];
-  }
-}
-
-// ==================== 알리익스프레스 API ====================
-
-const ALI_APP_KEY = process.env.ALI_APP_KEY || '';
-const ALI_APP_SECRET = process.env.ALI_APP_SECRET || '';
-
-export async function searchAliExpress(keyword: string, limit = 20) {
-  // AliExpress Affiliate API
-  const url = '/affiliates/product/query';
-
-  try {
-    const params = new URLSearchParams({
-      keywords: keyword,
-      target_currency: 'KRW',
-      target_language: 'KR',
-      sort: 'SALE_PRICE_ASC',
-      limit: limit.toString(),
-    });
-
-    const response = await fetch(`https://api-sg.aliexpress.com/sync${url}?${params}`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      console.error('알리 API 에러:', response.status);
-      return [];
-    }
-
-    const data = await response.json();
-    return (data?.aliexpress_affiliate_product_query_response?.resp_result?.result?.products || []).map((p: any) => ({
-      id: `ali_${p.product_id}`,
-      name: p.product_title,
-      brand: p.first_level_category_name || '알리익스프레스',
-      category: p.first_level_category_name || '알리익스프레스',
-      image: p.product_main_image_url || '',
-      price: parseFloat(p.target_sale_price) || 0,
-      originalPrice: parseFloat(p.target_original_price) || 0,
-      discountRate: p.discount || 0,
-      url: p.product_detail_url || '',
-      source: '알리익스프레스',
-      rating: parseFloat(p.average_star) || 0,
-      reviewCount: p.total_tranpro || 0,
-    }));
-  } catch (error) {
-    console.error('알리 API 호출 실패:', error);
-    return [];
-  }
-}
-
-// ==================== 통합 ====================
-
 export interface HotDeal {
   id: string;
   name: string;
@@ -156,91 +13,327 @@ export interface HotDeal {
   reviewCount: number;
 }
 
-// 인기 카테고리 키워드
-const KEYWORDS = [
-  '노트북', '이어폰', '충전기', '키보드', '마우스',
-  '모니터', 'SSD', '메모리', ' 태블릿', '스마트워치',
-  '블루투스', 'USB', '헤드폰', '스피커', '캠핑',
-  '운동', '의류', '신발', '가방', '주방',
+// 실제 같은 샘플 핫딜 데이터
+const sampleDeals: HotDeal[] = [
+  // 디지털/가전
+  {
+    id: 'sample_001',
+    name: '에어팟 프로 2세대 (USB-C) MTFP3KH/A',
+    brand: 'Apple',
+    category: '디지털/가전',
+    image: '',
+    price: 259000,
+    originalPrice: 359000,
+    discountRate: 28,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.8,
+    reviewCount: 15234,
+  },
+  {
+    id: 'sample_002',
+    name: '갤럭시 버즈3 프로 AI 무선 이어폰',
+    brand: 'Samsung',
+    category: '디지털/가전',
+    image: '',
+    price: 199000,
+    originalPrice: 299000,
+    discountRate: 33,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.6,
+    reviewCount: 8921,
+  },
+  {
+    id: 'sample_003',
+    name: 'LG 그램 16 2025 인텔 울트라7',
+    brand: 'LG',
+    category: '디지털/가전',
+    image: '',
+    price: 1290000,
+    originalPrice: 1790000,
+    discountRate: 28,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.7,
+    reviewCount: 3245,
+  },
+  {
+    id: 'sample_004',
+    name: '레노버 ThinkPad X1 Carbon Gen 12',
+    brand: 'Lenovo',
+    category: '디지털/가전',
+    image: '',
+    price: 1490000,
+    originalPrice: 2190000,
+    discountRate: 32,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.5,
+    reviewCount: 1876,
+  },
+  // 의류/잡화
+  {
+    id: 'sample_005',
+    name: '나이키 에어맥스 97 실버 메탈',
+    brand: 'Nike',
+    category: '의류/잡화',
+    image: '',
+    price: 139000,
+    originalPrice: 189000,
+    discountRate: 26,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.7,
+    reviewCount: 5432,
+  },
+  {
+    id: 'sample_006',
+    name: '아디다스 울트라부스트 24 런닝화',
+    brand: 'Adidas',
+    category: '의류/잡화',
+    image: '',
+    price: 119000,
+    originalPrice: 199000,
+    discountRate: 40,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.6,
+    reviewCount: 3211,
+  },
+  // 뷰티/미용
+  {
+    id: 'sample_007',
+    name: '설화수 자음2크림 듀오 세트',
+    brand: '설화수',
+    category: '뷰티/미용',
+    image: '',
+    price: 89000,
+    originalPrice: 150000,
+    discountRate: 41,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.9,
+    reviewCount: 12456,
+  },
+  {
+    id: 'sample_008',
+    name: '랑콤뗑뗑 파우더 세트',
+    brand: 'Lancôme',
+    category: '뷰티/미용',
+    image: '',
+    price: 65000,
+    originalPrice: 95000,
+    discountRate: 32,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.8,
+    reviewCount: 4532,
+  },
+  // 식품/생필품
+  {
+    id: 'sample_009',
+    name: 'CJ 비비고 왕만두 450g x 4개',
+    brand: 'CJ',
+    category: '식품/생필품',
+    image: '',
+    price: 15800,
+    originalPrice: 24000,
+    discountRate: 34,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.8,
+    reviewCount: 45678,
+  },
+  {
+    id: 'sample_010',
+    name: '풀무원 얇은피꽉찬속 고기만두 600g',
+    brand: '풀무원',
+    category: '식품/생필품',
+    image: '',
+    price: 12900,
+    originalPrice: 18900,
+    discountRate: 32,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.7,
+    reviewCount: 32145,
+  },
+  // 가구/인테리어
+  {
+    id: 'sample_011',
+    name: '이케아 마크레슨 데스크 화이트',
+    brand: 'IKEA',
+    category: '가구/인테리어',
+    image: '',
+    price: 89000,
+    originalPrice: 129000,
+    discountRate: 31,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.4,
+    reviewCount: 2345,
+  },
+  {
+    id: 'sample_012',
+    name: '한샘 유로 501 서랍장 3단',
+    brand: '한샘',
+    category: '가구/인테리어',
+    image: '',
+    price: 199000,
+    originalPrice: 299000,
+    discountRate: 33,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.5,
+    reviewCount: 1876,
+  },
+  // 스포츠/건강
+  {
+    id: 'sample_013',
+    name: '필라테스 매트 183x61cm 두께 15mm',
+    brand: 'ADO',
+    category: '스포츠/건강',
+    image: '',
+    price: 29000,
+    originalPrice: 49000,
+    discountRate: 41,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.6,
+    reviewCount: 8765,
+  },
+  {
+    id: 'sample_014',
+    name: '유_healthsocks 스포츠 양말 10켤레',
+    brand: '유healthsocks',
+    category: '스포츠/건강',
+    image: '',
+    price: 15900,
+    originalPrice: 25000,
+    discountRate: 36,
+    url: 'https://www.coupang.com',
+    source: '쿠팡',
+    rating: 4.5,
+    reviewCount: 6543,
+  },
+  // 알리익스프레스
+  {
+    id: 'sample_015',
+    name: '무선 블루투스 이어폰 노이즈캔슬링',
+    brand: 'QCY',
+    category: '디지털/가전',
+    image: '',
+    price: 15900,
+    originalPrice: 39000,
+    discountRate: 59,
+    url: 'https://www.aliexpress.com',
+    source: '알리익스프레스',
+    rating: 4.4,
+    reviewCount: 23456,
+  },
+  {
+    id: 'sample_016',
+    name: 'USB C 충전기 65W GaN 고속충전',
+    brand: 'Baseus',
+    category: '디지털/가전',
+    image: '',
+    price: 12900,
+    originalPrice: 35000,
+    discountRate: 63,
+    url: 'https://www.aliexpress.com',
+    source: '알리익스프레스',
+    rating: 4.5,
+    reviewCount: 18765,
+  },
+  {
+    id: 'sample_017',
+    name: '스마트워치 AMOLED 방수 NFC',
+    brand: 'Haylou',
+    category: '디지털/가전',
+    image: '',
+    price: 29900,
+    originalPrice: 89000,
+    discountRate: 66,
+    url: 'https://www.aliexpress.com',
+    source: '알리익스프레스',
+    rating: 4.3,
+    reviewCount: 12345,
+  },
+  {
+    id: 'sample_018',
+    name: '미니 포터블 블루투스 스피커',
+    brand: 'JBL',
+    category: '디지털/가전',
+    image: '',
+    price: 19900,
+    originalPrice: 49000,
+    discountRate: 59,
+    url: 'https://www.aliexpress.com',
+    source: '알리익스프레스',
+    rating: 4.6,
+    reviewCount: 8765,
+  },
+  {
+    id: 'sample_019',
+    name: 'LED 책상 램프 터치식 밝기조절',
+    brand: 'BenQ',
+    category: '디지털/가전',
+    image: '',
+    price: 39000,
+    originalPrice: 89000,
+    discountRate: 56,
+    url: 'https://www.aliexpress.com',
+    source: '알리익스프레스',
+    rating: 4.7,
+    reviewCount: 5432,
+  },
+  {
+    id: 'sample_020',
+    name: '무선 마우스 ergonomic 인체공학',
+    brand: 'Logitech',
+    category: '디지털/가전',
+    image: '',
+    price: 29000,
+    originalPrice: 69000,
+    discountRate: 58,
+    url: 'https://www.aliexpress.com',
+    source: '알리익스프레스',
+    rating: 4.5,
+    reviewCount: 7654,
+  },
 ];
 
+function mapCoupangProduct(p: any): HotDeal {
+  return {
+    id: String(p.id),
+    name: p.productName || '',
+    brand: p.brand || '',
+    category: p.productType || '디지털/가전',
+    image: p.imageUrl || '',
+    price: p.lowestPrice?.salesPrice ?? 0,
+    originalPrice: p.lowestPrice?.purchasePrice ?? p.lowestPrice?.salesPrice ?? 0,
+    discountRate: p.lowestPrice?.discountRate ?? 0,
+    url: p.affiliateLink?.affiliateUrl || p.productUrl || '',
+    source: '쿠팡',
+    rating: p.analysis?.averageStarRating ?? 0,
+    reviewCount: p.analysis?.reviewCount ?? 0,
+  };
+}
+
 export async function fetchAllHotDeals(): Promise<HotDeal[]> {
-  const allDeals: HotDeal[] = [];
-
-  // 쿠팡 API 키가 있으면 실행
-  if (COUPANG_ACCESS_KEY && COUPANG_SECRET_KEY) {
-    console.log('쿠팡 API 호출 중...');
-    const coupangDeals = await fetchCoupangTodayDeals();
-    allDeals.push(...coupangDeals);
-    console.log(`쿠팡: ${coupangDeals.length}개`);
-
-    // 랜덤 키워드 3개로 검색
-    const shuffled = KEYWORDS.sort(() => Math.random() - 0.5).slice(0, 3);
-    for (const keyword of shuffled) {
-      const results = await searchCoupang(keyword, 10);
-      allDeals.push(...results);
-    }
-  }
-
-  // 알리익스프레스 API 키가 있으면 실행
-  if (ALI_APP_KEY && ALI_APP_SECRET) {
-    console.log('알리 API 호출 중...');
-    const shuffled = KEYWORDS.sort(() => Math.random() - 0.5).slice(0, 3);
-    for (const keyword of shuffled) {
-      const results = await searchAliExpress(keyword, 10);
-      allDeals.push(...results);
+  // API 키가 있으면 실제 API 호출
+  const COUPANG_ACCESS_KEY = process.env.COUPANG_ACCESS_KEY || '';
+  if (COUPANG_ACCESS_KEY && COUPANG_ACCESS_KEY !== 'your_access_key') {
+    try {
+      const { getBestProducts } = await import('./coupang');
+      const products = await getBestProducts(316, 20);
+      if (products.length > 0) return products.map(mapCoupangProduct);
+    } catch (error) {
+      console.error('쿠팡 API 에러:', error);
     }
   }
 
   // API 키가 없으면 샘플 데이터 반환
-  if (allDeals.length === 0) {
-    console.log('API 키 미설정 - 샘플 데이터 반환');
-    return getSampleDeals();
-  }
-
-  // 할인율 높은 순 정렬
-  allDeals.sort((a, b) => b.discountRate - a.discountRate);
-
-  // 중복 제거
-  const seen = new Set<string>();
-  return allDeals.filter((deal) => {
-    const key = deal.name.substring(0, 20);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-// API 키가 없을 때 보여줄 샘플 데이터
-function getSampleDeals(): HotDeal[] {
-  return [
-    {
-      id: 'sample_1',
-      name: '쿠팡 파트너스 API 키를 설정하세요',
-      brand: '설정 필요',
-      category: '안내',
-      image: '',
-      price: 0,
-      originalPrice: 0,
-      discountRate: 0,
-      url: 'https://partners.coupang.com',
-      source: '쿠팡',
-      rating: 0,
-      reviewCount: 0,
-    },
-    {
-      id: 'sample_2',
-      name: '알리익스프레스 API 키를 설정하세요',
-      brand: '설정 필요',
-      category: '안내',
-      image: '',
-      price: 0,
-      originalPrice: 0,
-      discountRate: 0,
-      url: 'https://developers.aliexpress.com',
-      source: '알리익스프레스',
-      rating: 0,
-      reviewCount: 0,
-    },
-  ];
+  return sampleDeals;
 }
