@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAdminRequest } from '@/lib/auth';
-import { addPost } from '@/lib/store';
+import { addPost, listPosts } from '@/lib/store';
 import { createShareLink, tossKeysConfigured, type BestSellingItem } from '@/lib/toss-api';
+
+interface ImportItem extends BestSellingItem {
+  categoryName?: string | null;
+}
 
 export async function POST(request: NextRequest) {
   if (!(await isAdminRequest(request))) {
@@ -22,10 +26,19 @@ export async function POST(request: NextRequest) {
 
   const created: { tacaItemId: number; title: string; shortUrl: string }[] = [];
   const failed: { tacaItemId: number; reason: string }[] = [];
+  const skipped: { tacaItemId: number; reason: string }[] = [];
 
-  for (const item of items) {
+  const postsNow = await listPosts();
+  const existing = new Set(postsNow.map((p) => p.tacaItemId).filter(Boolean));
+  const existingTitles = new Set(postsNow.map((p) => p.title));
+
+  for (const item of items as ImportItem[]) {
     try {
       if (!item?.tacaItemId || !item?.displayName) throw new Error('잘못된 상품 데이터');
+      if (existing.has(item.tacaItemId) || existingTitles.has(`토스) ${item.displayName}`)) {
+        skipped.push({ tacaItemId: item.tacaItemId, reason: '이미 등록됨' });
+        continue;
+      }
       const link = await createShareLink(Number(item.tacaItemId));
       const post = await addPost({
         title: `토스) ${item.displayName}`,
@@ -35,7 +48,8 @@ export async function POST(request: NextRequest) {
         price: item.displayPrice != null ? Number(item.displayPrice) : null,
         rating: item.reviewScore != null ? Number(item.reviewScore) : null,
         reviewCount: item.reviewCount != null ? Number(item.reviewCount) : null,
-        categoryName: item.discountRate ? `할인 ${item.discountRate}%` : null,
+        categoryName: item.categoryName || (item.discountRate ? `할인 ${item.discountRate}%` : null),
+        tacaItemId: Number(item.tacaItemId),
         rank: item.rank != null ? Number(item.rank) : null,
         arrivalDate: null,
         merchant: item.originalPrice && item.displayPrice && item.originalPrice > item.displayPrice
@@ -44,11 +58,13 @@ export async function POST(request: NextRequest) {
         source: '토스',
         author,
       });
+      existing.add(item.tacaItemId);
+      existingTitles.add(post.title);
       created.push({ tacaItemId: item.tacaItemId, title: post.title, shortUrl: link.shortUrl });
     } catch (e: any) {
       failed.push({ tacaItemId: item?.tacaItemId ?? 0, reason: e.message || '실패' });
     }
   }
 
-  return NextResponse.json({ created, failed }, { status: created.length > 0 ? 201 : 502 });
+  return NextResponse.json({ created, failed, skipped }, { status: created.length > 0 || skipped.length > 0 ? 201 : 502 });
 }

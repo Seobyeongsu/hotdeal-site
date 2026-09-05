@@ -8,6 +8,7 @@ export interface BoardPost {
   rating: number | null;
   reviewCount: number | null;
   categoryName: string | null;
+  tacaItemId?: number | null;
   rank: number | null;
   arrivalDate: string | null;
   merchant: string | null;

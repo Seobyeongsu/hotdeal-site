@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAdminRequest } from '@/lib/auth';
-import { fetchBestSelling, tossHealth, tossKeysConfigured } from '@/lib/toss-api';
+import { listPosts } from '@/lib/store';
+import {
+  fetchBestSelling,
+  fetchCategoryMap,
+  recordPriceHistory,
+  resolveL1Category,
+  tossHealth,
+  tossKeysConfigured,
+} from '@/lib/toss-api';
 
 export async function GET(request: NextRequest) {
   if (!(await isAdminRequest(request))) {
@@ -17,7 +25,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ health: await tossHealth() });
     }
     const result = await fetchBestSelling(Math.min(Math.max(size, 1), 100), cursor);
-    return NextResponse.json(result);
+    const [catMap, posts, priceStats] = await Promise.all([
+      fetchCategoryMap().catch(() => new Map()),
+      listPosts(),
+      recordPriceHistory(result.items).catch(() => new Map()),
+    ]);
+    const registered = new Set(posts.map((p) => p.tacaItemId).filter(Boolean));
+    const registeredTitles = new Set(posts.map((p) => p.title));
+    const items = result.items.map((it) => {
+      const stat = priceStats.get(it.tacaItemId);
+      const already = registered.has(it.tacaItemId) || registeredTitles.has(`토스) ${it.displayName}`);
+      return {
+        ...it,
+        categoryName: resolveL1Category(it.categoryIds, catMap),
+        alreadyRegistered: already,
+        lowest30d: stat ? stat.lowest30 : null,
+        historyDays: stat ? stat.days : 0,
+        isLowestNow: !!(stat && it.displayPrice != null && it.displayPrice <= stat.lowest30),
+      };
+    });
+    return NextResponse.json({ items, nextCursor: result.nextCursor, hasNext: result.hasNext });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || '조회 실패' }, { status: 502 });
   }

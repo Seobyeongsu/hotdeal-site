@@ -15,8 +15,16 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hr / 24)}일`;
 }
 
-export default async function BbsPage() {
-  const posts = await listPosts();
+export default async function BbsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cat?: string }>;
+}) {
+  const { cat } = await searchParams;
+  const allPosts = await listPosts();
+  const cats = Array.from(new Set(allPosts.map((p) => p.categoryName).filter(Boolean) as string[]));
+  const activeCat = cat && cats.includes(cat) ? cat : '전체';
+  const posts = activeCat === '전체' ? allPosts : allPosts.filter((p) => p.categoryName === activeCat);
 
   return (
     <>
@@ -28,6 +36,24 @@ export default async function BbsPage() {
           </h1>
           <span className="text-xs text-gray-600">총 {posts.length}개</span>
         </div>
+
+        {cats.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {['전체', ...cats].map((c) => (
+              <Link
+                key={c}
+                href={c === '전체' ? '/bbs' : `/bbs?cat=${encodeURIComponent(c)}`}
+                className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                  activeCat === c
+                    ? 'bg-red-600 border-red-600 text-white font-semibold'
+                    : 'bg-[#12121a] border-[#1e1e2e] text-gray-400 hover:border-gray-500 hover:text-white'
+                }`}
+              >
+                {c}
+              </Link>
+            ))}
+          </div>
+        )}
 
         <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl overflow-hidden">
           {posts.length === 0 ? (

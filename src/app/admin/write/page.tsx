@@ -30,6 +30,11 @@ interface BestItem {
   isSoldOut: boolean;
   reviewScore: number | null;
   reviewCount: number | null;
+  categoryName: string | null;
+  alreadyRegistered: boolean;
+  lowest30d: number | null;
+  historyDays: number;
+  isLowestNow: boolean;
 }
 
 export default function AdminWritePage() {
@@ -39,6 +44,7 @@ export default function AdminWritePage() {
   const [bestCursor, setBestCursor] = useState<string | null>(null);
   const [bestLoading, setBestLoading] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [catFilter, setCatFilter] = useState('전체');
   const [importMsg, setImportMsg] = useState('');
   const [url, setUrl] = useState('');
   const [price, setPrice] = useState('');
@@ -100,8 +106,14 @@ export default function AdminWritePage() {
     }
   };
 
+  const selectableItems = bestItems.filter((i) => !i.alreadyRegistered);
+  const visibleItems = catFilter === '전체' ? bestItems : bestItems.filter((i) => i.categoryName === catFilter);
+  const categories = ['전체', ...Array.from(new Set(bestItems.map((i) => i.categoryName).filter(Boolean) as string[]))];
+
   const selectAll = () => {
-    setSelected((prev) => (prev.size === bestItems.length ? new Set() : new Set(bestItems.map((i) => i.tacaItemId))));
+    setSelected((prev) =>
+      prev.size === selectableItems.length ? new Set() : new Set(selectableItems.map((i) => i.tacaItemId))
+    );
   };
 
   const toggleItem = (id: number) => {
@@ -120,6 +132,7 @@ export default function AdminWritePage() {
     setImportMsg('');
     try {
       let createdTotal = 0;
+      let skippedTotal = 0;
       const failedAll: { tacaItemId: number; reason: string }[] = [];
       for (let i = 0; i < items.length; i += 30) {
         const chunk = items.slice(i, i + 30);
@@ -132,10 +145,12 @@ export default function AdminWritePage() {
         const data = await res.json();
         if (!res.ok && !data.created?.length) throw new Error(data.error || '등록 실패');
         createdTotal += data.created?.length || 0;
+        skippedTotal += data.skipped?.length || 0;
         if (data.failed?.length) failedAll.push(...data.failed);
       }
       const failNote = failedAll.length ? ` / 실패 ${failedAll.length}건: ${failedAll[0].reason}` : '';
-      setImportMsg(`✅ ${createdTotal}개 등록 완료 (쉐어링크 자동 발급)${failNote}`);
+      const skipNote = skippedTotal ? ` / 이미 등록 ${skippedTotal}건 건너뜀` : '';
+      setImportMsg(`✅ ${createdTotal}개 등록 완료 (쉐어링크 자동 발급)${skipNote}${failNote}`);
       setSelected(new Set());
     } catch (e: any) {
       setImportMsg(`❌ ${e.message}`);
@@ -269,7 +284,7 @@ export default function AdminWritePage() {
                   onClick={selectAll}
                   className="bg-[#1e1e2e] hover:bg-[#2a2a3e] text-xs px-3 py-1.5 rounded-lg transition"
                 >
-                  {selected.size === bestItems.length ? '선택 해제' : '전체 선택'}
+                  {selected.size === selectableItems.length ? '선택 해제' : '전체 선택'}
                 </button>
               )}
               {bestItems.length > 0 && (
@@ -285,16 +300,41 @@ export default function AdminWritePage() {
           </div>
 
           {bestItems.length > 0 && (
-            <div className="mt-3 max-h-80 overflow-y-auto border border-[#1e1e2e] rounded-lg divide-y divide-[#1e1e2e]">
-              {bestItems.map((item) => (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-[10px] text-gray-500">카테고리</span>
+              <select
+                value={catFilter}
+                onChange={(e) => setCatFilter(e.target.value)}
+                className="bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg text-xs px-2 py-1.5 outline-none focus:border-red-600"
+              >
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] text-gray-500">
+                {visibleItems.length}개 표시
+                {bestItems.some((i) => i.alreadyRegistered) &&
+                  ` · 이미 등록 ${bestItems.filter((i) => i.alreadyRegistered).length}개 제외됨`}
+              </span>
+            </div>
+          )}
+
+          {bestItems.length > 0 && (
+            <div className="mt-3 max-h-96 overflow-y-auto border border-[#1e1e2e] rounded-lg divide-y divide-[#1e1e2e]">
+              {visibleItems.map((item) => (
                 <label
                   key={item.tacaItemId}
-                  className="flex items-center gap-3 px-3 py-2 hover:bg-[#1e1e2e]/50 cursor-pointer"
+                  className={`flex items-center gap-3 px-3 py-2 ${
+                    item.alreadyRegistered ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#1e1e2e]/50 cursor-pointer'
+                  }`}
                 >
                   <input
                     type="checkbox"
                     checked={selected.has(item.tacaItemId)}
                     onChange={() => toggleItem(item.tacaItemId)}
+                    disabled={item.alreadyRegistered}
                     className="accent-red-600 shrink-0"
                   />
                   {item.thumbnailUrl ? (
@@ -307,14 +347,24 @@ export default function AdminWritePage() {
                     <p className="text-xs truncate">{item.displayName}</p>
                     <p className="text-[10px] text-gray-500">
                       #{item.rank}
+                      {item.categoryName && <span className="text-gray-400"> · {item.categoryName}</span>}
                       {item.reviewScore != null && <> · ★{item.reviewScore}</>}
                       {item.reviewCount != null && <> · 리뷰 {item.reviewCount.toLocaleString()}</>}
                       {item.isSoldOut && <span className="text-gray-600"> · 품절</span>}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
+                    {item.alreadyRegistered ? (
+                      <span className="text-[10px] bg-[#1e1e2e] text-gray-400 px-1.5 py-0.5 rounded">등록됨</span>
+                    ) : item.isLowestNow && item.historyDays >= 2 ? (
+                      <span className="text-[10px] bg-green-600/20 text-green-400 font-bold px-1.5 py-0.5 rounded">
+                        30일 최저가
+                      </span>
+                    ) : item.lowest30d != null && item.historyDays >= 2 ? (
+                      <span className="text-[10px] text-gray-500">30일최저 {item.lowest30d.toLocaleString()}원</span>
+                    ) : null}
                     {item.discountRate ? (
-                      <span className="text-[10px] text-red-400 font-bold">{item.discountRate}%</span>
+                      <div className="text-[10px] text-red-400 font-bold">{item.discountRate}%</div>
                     ) : null}
                     <p className="text-xs font-bold text-red-400">
                       {item.displayPrice != null ? `${item.displayPrice.toLocaleString()}원` : '-'}

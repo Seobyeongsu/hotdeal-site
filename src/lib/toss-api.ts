@@ -152,3 +152,93 @@ export async function createShareLink(tacaItemId: number): Promise<IssuedLink> {
 export async function tossHealth(): Promise<unknown> {
   return tossGet<unknown>('/openapi/health');
 }
+
+interface CategoryNode {
+  categoryId: number;
+  level: number;
+  displayName: string;
+  children?: CategoryNode[];
+}
+
+const CATS_CACHE_KEY = 'toss:cats:v1';
+const CATS_TTL_MS = 7 * 24 * 3600 * 1000;
+
+export async function fetchCategoryMap(): Promise<Map<number, { name: string; level: number }>> {
+  try {
+    const cached = await kvGet(CATS_CACHE_KEY);
+    if (cached) {
+      const c = JSON.parse(cached) as { expiresAt: number; map: [number, { name: string; level: number }][] };
+      if (c.expiresAt > Date.now()) return new Map(c.map);
+    }
+  } catch {
+    /* cache miss */
+  }
+  const data = await tossGet<{ categories: CategoryNode[] }>('/openapi/categories');
+  const map = new Map<number, { name: string; level: number }>();
+  const walk = (nodes: CategoryNode[]) => {
+    for (const n of nodes || []) {
+      map.set(n.categoryId, { name: n.displayName, level: n.level });
+      if (n.children?.length) walk(n.children);
+    }
+  };
+  walk(data.categories || []);
+  try {
+    await kvSet(CATS_CACHE_KEY, JSON.stringify({ expiresAt: Date.now() + CATS_TTL_MS, map: [...map.entries()] }));
+  } catch {
+    /* non-fatal */
+  }
+  return map;
+}
+
+export function resolveL1Category(categoryIds: number[], map: Map<number, { name: string; level: number }>): string | null {
+  for (const id of categoryIds || []) {
+    const hit = map.get(id);
+    if (hit?.level === 1) return hit.name;
+  }
+  return null;
+}
+
+export interface PriceStat {
+  lowest30: number;
+  days: number;
+}
+
+const priceKey = (itemId: number) => `toss:ph:${itemId}`;
+
+export async function recordPriceHistory(
+  items: { tacaItemId: number; displayPrice: number | null }[]
+): Promise<Map<number, PriceStat>> {
+  const stats = new Map<number, PriceStat>();
+  const today = new Date().toISOString().slice(0, 10);
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+  for (const item of items) {
+    if (!item?.tacaItemId || item.displayPrice == null) continue;
+    let history: { d: string; p: number }[] = [];
+    try {
+      const raw = await kvGet(priceKey(item.tacaItemId));
+      if (raw) history = JSON.parse(raw);
+    } catch {
+      history = [];
+    }
+    const last = history[history.length - 1];
+    if (!last || last.d === today) {
+      if (last && last.d === today) last.p = item.displayPrice;
+      else history.push({ d: today, p: item.displayPrice });
+    } else if (last.p !== item.displayPrice) {
+      history.push({ d: today, p: item.displayPrice });
+    }
+    history = history.filter((h) => new Date(h.d).getTime() >= cutoff).slice(-30);
+    try {
+      await kvSet(priceKey(item.tacaItemId), JSON.stringify(history));
+    } catch {
+      /* non-fatal */
+    }
+    if (history.length > 0) {
+      stats.set(item.tacaItemId, {
+        lowest30: Math.min(...history.map((h) => h.p)),
+        days: history.length,
+      });
+    }
+  }
+  return stats;
+}
