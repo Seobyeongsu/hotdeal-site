@@ -26,12 +26,7 @@ export default async function BbsPage() {
           <h1 className="text-lg font-bold flex items-center gap-2">
             <span className="text-red-500">🔥</span> 핫딜게시판
           </h1>
-          <Link
-            href="/bbs/write"
-            className="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
-          >
-            글쓰기
-          </Link>
+          <span className="text-xs text-gray-600">총 {posts.length}개</span>
         </div>
 
         <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl overflow-hidden">
@@ -39,7 +34,7 @@ export default async function BbsPage() {
             <div className="p-12 text-center text-gray-500">
               <p className="text-4xl mb-3">📭</p>
               <p>아직 등록된 핫딜이 없습니다.</p>
-              <p className="text-sm mt-1">토스 쉐어링크를 붙여넣고 첫 핫딜을 등록해보세요!</p>
+              <p className="text-sm mt-1">새 핫딜이 올라오면 가장 먼저 확인하세요!</p>
             </div>
           ) : (
             <ul>

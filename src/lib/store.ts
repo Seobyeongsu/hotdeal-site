@@ -123,6 +123,24 @@ export async function addPost(data: Omit<BoardPost, 'id' | 'createdAt' | 'views'
   return post;
 }
 
+export async function deletePost(id: string): Promise<boolean> {
+  const kv = backend();
+  const posts = await listPosts();
+  const idx = posts.findIndex((p) => p.id === id);
+  if (idx < 0) return false;
+  posts.splice(idx, 1);
+  await kv.put(INDEX_KEY, JSON.stringify(posts));
+  const del = (kv as any).delete;
+  if (typeof del === 'function') {
+    try {
+      await del.call(kv, `post:${id}`);
+    } catch {
+      /* ignore */
+    }
+  }
+  return true;
+}
+
 export async function bumpViews(id: string): Promise<void> {
   const kv = backend();
   const post = await getPost(id);

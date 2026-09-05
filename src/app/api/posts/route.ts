@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listPosts, addPost } from '@/lib/store';
 import { parseTossLink, isTossLink } from '@/lib/toss';
+import { isAdminRequest } from '@/lib/auth';
 
 export async function GET() {
   const posts = await listPosts();
@@ -8,6 +9,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await isAdminRequest(request))) {
+    return NextResponse.json({ error: '관리자만 등록할 수 있습니다.' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const url: string = (body.url || '').trim();

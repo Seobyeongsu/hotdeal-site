@@ -25,10 +25,10 @@ export default function Header() {
               </Link>
             </nav>
             <Link
-              href="/bbs/write"
-              className="hidden sm:block bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
+              href="/admin"
+              className="hidden sm:block text-xs text-gray-500 hover:text-white border border-[#1e1e2e] px-3 py-1.5 rounded-lg transition"
             >
-              핫딜 등록
+              관리자
             </Link>
             <button className="p-2 hover:bg-[#1e1e2e] rounded-lg transition">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

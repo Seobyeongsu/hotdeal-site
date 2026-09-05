@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/Header';
@@ -19,8 +19,9 @@ interface Preview {
   source: string;
 }
 
-export default function WritePage() {
+export default function AdminWritePage() {
   const router = useRouter();
+  const [ready, setReady] = useState(false);
   const [url, setUrl] = useState('');
   const [price, setPrice] = useState('');
   const [author, setAuthor] = useState('오늘도핫딜');
@@ -30,6 +31,16 @@ export default function WritePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/admin/me')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.ok) router.replace('/admin');
+        else setReady(true);
+      })
+      .catch(() => router.replace('/admin'));
+  }, [router]);
 
   const analyze = async () => {
     setError('');
@@ -70,7 +81,7 @@ export default function WritePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '등록 실패');
       setDone(true);
-      setTimeout(() => router.push('/bbs'), 800);
+      setTimeout(() => router.push('/admin'), 800);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -78,14 +89,25 @@ export default function WritePage() {
     }
   };
 
+  if (!ready) {
+    return (
+      <>
+        <Header />
+        <main className="max-w-2xl mx-auto px-4 py-16 text-center text-gray-500">
+          확인 중...
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <Header />
       <main className="max-w-2xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-bold">핫딜 등록</h1>
-          <Link href="/bbs" className="text-sm text-gray-400 hover:text-white transition">
-            목록
+          <h1 className="text-lg font-bold">핫딜 등록 (관리자)</h1>
+          <Link href="/admin" className="text-sm text-gray-400 hover:text-white transition">
+            관리자로
           </Link>
         </div>
 
@@ -131,7 +153,9 @@ export default function WritePage() {
                   {preview.rating != null && (
                     <span className="text-yellow-400">★ {preview.rating}</span>
                   )}
-                  {preview.reviewCount != null && <span>리뷰 {preview.reviewCount.toLocaleString()}</span>}
+                  {preview.reviewCount != null && (
+                    <span>리뷰 {preview.reviewCount.toLocaleString()}</span>
+                  )}
                   {preview.categoryName && (
                     <span>
                       {preview.categoryName}
@@ -187,7 +211,7 @@ export default function WritePage() {
           )}
           {done && (
             <p className="text-sm text-green-400 bg-green-600/10 border border-green-600/30 rounded-lg px-3 py-2">
-              ✅ 등록 완료! 게시판으로 이동합니다...
+              ✅ 등록 완료! 관리자로 이동합니다...
             </p>
           )}
 
