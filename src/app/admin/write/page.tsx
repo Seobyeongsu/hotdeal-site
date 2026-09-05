@@ -19,9 +19,27 @@ interface Preview {
   source: string;
 }
 
+interface BestItem {
+  rank: number;
+  tacaItemId: number;
+  displayName: string;
+  thumbnailUrl: string;
+  displayPrice: number | null;
+  originalPrice: number | null;
+  discountRate: number | null;
+  isSoldOut: boolean;
+  reviewScore: number | null;
+  reviewCount: number | null;
+}
+
 export default function AdminWritePage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [bestItems, setBestItems] = useState<BestItem[]>([]);
+  const [bestCursor, setBestCursor] = useState<string | null>(null);
+  const [bestLoading, setBestLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [importMsg, setImportMsg] = useState('');
   const [url, setUrl] = useState('');
   const [price, setPrice] = useState('');
   const [author, setAuthor] = useState('오늘도핫딜');
@@ -41,6 +59,54 @@ export default function AdminWritePage() {
       })
       .catch(() => router.replace('/admin'));
   }, [router]);
+
+  const loadBest = async (cursor?: string | null) => {
+    setBestLoading(true);
+    setImportMsg('');
+    try {
+      const res = await fetch(`/api/toss-api/best?size=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '조회 실패');
+      setBestItems((prev) => (cursor ? [...prev, ...(data.items || [])] : data.items || []));
+      setBestCursor(data.nextCursor || null);
+    } catch (e: any) {
+      setImportMsg(`❌ ${e.message}`);
+    } finally {
+      setBestLoading(false);
+    }
+  };
+
+  const toggleItem = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const importSelected = async () => {
+    const items = bestItems.filter((i) => selected.has(i.tacaItemId));
+    if (items.length === 0) return;
+    setBestLoading(true);
+    setImportMsg('');
+    try {
+      const res = await fetch('/api/toss-api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, author }),
+      });
+      const data = await res.json();
+      if (!res.ok && !data.created?.length) throw new Error(data.error || '등록 실패');
+      const failNote = data.failed?.length ? ` / 실패 ${data.failed.length}건: ${data.failed[0].reason}` : '';
+      setImportMsg(`✅ ${data.created.length}개 등록 완료 (쉐어링크 자동 발급)${failNote}`);
+      setSelected(new Set());
+    } catch (e: any) {
+      setImportMsg(`❌ ${e.message}`);
+    } finally {
+      setBestLoading(false);
+    }
+  };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const text = e.clipboardData.getData('text');
@@ -139,6 +205,89 @@ export default function AdminWritePage() {
           <Link href="/admin" className="text-sm text-gray-400 hover:text-white transition">
             관리자로
           </Link>
+        </div>
+
+        <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold flex items-center gap-2">
+              <span>🔥</span> 토스 베스트 자동불러오기
+              <span className="text-[10px] font-normal text-gray-500">가격·링크까지 완전 자동</span>
+            </h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => loadBest()}
+                disabled={bestLoading}
+                className="bg-[#1e1e2e] hover:bg-[#2a2a3e] disabled:opacity-50 text-xs px-3 py-1.5 rounded-lg transition"
+              >
+                {bestLoading ? '불러오는 중...' : '베스트 20개 불러오기'}
+              </button>
+              {bestItems.length > 0 && (
+                <button
+                  onClick={importSelected}
+                  disabled={bestLoading || selected.size === 0}
+                  className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                >
+                  선택 {selected.size}개 등록
+                </button>
+              )}
+            </div>
+          </div>
+
+          {bestItems.length > 0 && (
+            <div className="mt-3 max-h-80 overflow-y-auto border border-[#1e1e2e] rounded-lg divide-y divide-[#1e1e2e]">
+              {bestItems.map((item) => (
+                <label
+                  key={item.tacaItemId}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-[#1e1e2e]/50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(item.tacaItemId)}
+                    onChange={() => toggleItem(item.tacaItemId)}
+                    className="accent-red-600 shrink-0"
+                  />
+                  {item.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={item.thumbnailUrl} alt="" className="w-9 h-9 rounded object-cover bg-[#1e1e2e] shrink-0" />
+                  ) : (
+                    <span className="w-9 h-9 rounded bg-[#1e1e2e] shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs truncate">{item.displayName}</p>
+                    <p className="text-[10px] text-gray-500">
+                      #{item.rank}
+                      {item.reviewScore != null && <> · ★{item.reviewScore}</>}
+                      {item.reviewCount != null && <> · 리뷰 {item.reviewCount.toLocaleString()}</>}
+                      {item.isSoldOut && <span className="text-gray-600"> · 품절</span>}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {item.discountRate ? (
+                      <span className="text-[10px] text-red-400 font-bold">{item.discountRate}%</span>
+                    ) : null}
+                    <p className="text-xs font-bold text-red-400">
+                      {item.displayPrice != null ? `${item.displayPrice.toLocaleString()}원` : '-'}
+                    </p>
+                  </div>
+                </label>
+              ))}
+              {bestCursor && (
+                <button
+                  onClick={() => loadBest(bestCursor)}
+                  disabled={bestLoading}
+                  className="w-full py-2 text-xs text-gray-400 hover:text-white hover:bg-[#1e1e2e] transition"
+                >
+                  + 더 불러오기
+                </button>
+              )}
+            </div>
+          )}
+
+          {importMsg && (
+            <p className="text-xs mt-2 text-gray-300 bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2">
+              {importMsg}
+            </p>
+          )}
         </div>
 
         <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-5 space-y-4">

@@ -84,6 +84,14 @@ function backend(): KVLike {
   return cachedBackend;
 }
 
+export async function kvGet(key: string): Promise<string | null> {
+  return backend().get(key);
+}
+
+export async function kvSet(key: string, value: string): Promise<void> {
+  return backend().put(key, value);
+}
+
 export async function listPosts(): Promise<BoardPost[]> {
   const raw = await backend().get(INDEX_KEY);
   if (!raw) return [];
