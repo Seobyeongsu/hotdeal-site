@@ -62,12 +62,14 @@ export default function AdminWritePage() {
             !l.includes('할인'),
         );
       if (nameLine && !title) setTitle(nameLine);
+      analyze(m[0]);
     }
   };
 
-  const analyze = async () => {
-    const m = url.match(/https?:\/\/\S+/);
-    const link = m ? m[0] : url;
+  const analyze = async (linkArg?: string) => {
+    const src = linkArg || url;
+    const m = src.match(/https?:\/\/\S+/);
+    const link = m ? m[0] : src;
     if (link !== url) setUrl(link);
     setError('');
     setLoading(true);
@@ -142,18 +144,19 @@ export default function AdminWritePage() {
         <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-5 space-y-4">
           <div>
             <label className="block text-sm text-gray-400 mb-1.5">
-              토스 쉐어링크 (복사한 내용을 그대로 붙여넣기)
+              토스 쉐어링크 (복사한 내용 전체를 붙여넣으면 자동 분석)
             </label>
             <div className="flex gap-2">
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onPaste={handlePaste}
+                onKeyDown={(e) => e.key === 'Enter' && url && analyze()}
                 placeholder="https://toss.im/_m/xxxxxxx (문구 전체 붙여넣기 가능)"
                 className="flex-1 bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
               />
               <button
-                onClick={analyze}
+                onClick={() => analyze()}
                 disabled={!url || loading}
                 className="bg-[#1e1e2e] hover:bg-[#2a2a3e] disabled:opacity-50 text-sm px-4 rounded-lg transition shrink-0"
               >
@@ -218,7 +221,11 @@ export default function AdminWritePage() {
               <label className="block text-sm text-gray-400 mb-1.5">가격 (선택)</label>
               <input
                 value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/[^0-9]/g, '');
+                  setPrice(digits ? Number(digits).toLocaleString('ko-KR') : '');
+                }}
+                inputMode="numeric"
                 placeholder="12,900"
                 className="w-full bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
               />
