@@ -76,6 +76,34 @@ export default function AdminWritePage() {
     }
   };
 
+  const loadAllBest = async () => {
+    setBestLoading(true);
+    setImportMsg('');
+    try {
+      const all: BestItem[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 10; page++) {
+        const res = await fetch(`/api/toss-api/best?size=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '조회 실패');
+        all.push(...(data.items || []));
+        if (!data.hasNext || !data.nextCursor) break;
+        cursor = data.nextCursor;
+      }
+      setBestItems(all);
+      setBestCursor(null);
+      setImportMsg(`✅ 전체 ${all.length}개 불러옴`);
+    } catch (e: any) {
+      setImportMsg(`❌ ${e.message}`);
+    } finally {
+      setBestLoading(false);
+    }
+  };
+
+  const selectAll = () => {
+    setSelected((prev) => (prev.size === bestItems.length ? new Set() : new Set(bestItems.map((i) => i.tacaItemId))));
+  };
+
   const toggleItem = (id: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -91,15 +119,23 @@ export default function AdminWritePage() {
     setBestLoading(true);
     setImportMsg('');
     try {
-      const res = await fetch('/api/toss-api/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items, author }),
-      });
-      const data = await res.json();
-      if (!res.ok && !data.created?.length) throw new Error(data.error || '등록 실패');
-      const failNote = data.failed?.length ? ` / 실패 ${data.failed.length}건: ${data.failed[0].reason}` : '';
-      setImportMsg(`✅ ${data.created.length}개 등록 완료 (쉐어링크 자동 발급)${failNote}`);
+      let createdTotal = 0;
+      const failedAll: { tacaItemId: number; reason: string }[] = [];
+      for (let i = 0; i < items.length; i += 30) {
+        const chunk = items.slice(i, i + 30);
+        setImportMsg(`등록 중... ${createdTotal}/${items.length} (30개씩 자동 분할)`);
+        const res = await fetch('/api/toss-api/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: chunk, author }),
+        });
+        const data = await res.json();
+        if (!res.ok && !data.created?.length) throw new Error(data.error || '등록 실패');
+        createdTotal += data.created?.length || 0;
+        if (data.failed?.length) failedAll.push(...data.failed);
+      }
+      const failNote = failedAll.length ? ` / 실패 ${failedAll.length}건: ${failedAll[0].reason}` : '';
+      setImportMsg(`✅ ${createdTotal}개 등록 완료 (쉐어링크 자동 발급)${failNote}`);
       setSelected(new Set());
     } catch (e: any) {
       setImportMsg(`❌ ${e.message}`);
@@ -219,8 +255,23 @@ export default function AdminWritePage() {
                 disabled={bestLoading}
                 className="bg-[#1e1e2e] hover:bg-[#2a2a3e] disabled:opacity-50 text-xs px-3 py-1.5 rounded-lg transition"
               >
-                {bestLoading ? '불러오는 중...' : '베스트 20개 불러오기'}
+                베스트 20개
               </button>
+              <button
+                onClick={loadAllBest}
+                disabled={bestLoading}
+                className="bg-[#1e1e2e] hover:bg-[#2a2a3e] disabled:opacity-50 text-xs px-3 py-1.5 rounded-lg transition"
+              >
+                전부 불러오기
+              </button>
+              {bestItems.length > 0 && (
+                <button
+                  onClick={selectAll}
+                  className="bg-[#1e1e2e] hover:bg-[#2a2a3e] text-xs px-3 py-1.5 rounded-lg transition"
+                >
+                  {selected.size === bestItems.length ? '선택 해제' : '전체 선택'}
+                </button>
+              )}
               {bestItems.length > 0 && (
                 <button
                   onClick={importSelected}
