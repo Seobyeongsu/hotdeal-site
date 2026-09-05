@@ -42,7 +42,33 @@ export default function AdminWritePage() {
       .catch(() => router.replace('/admin'));
   }, [router]);
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text');
+    const m = text.match(/https?:\/\/toss\.im\/\S+/);
+    if (m) {
+      e.preventDefault();
+      setUrl(m[0]);
+      const nameLine = text
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .find(
+          (l) =>
+            l &&
+            !l.startsWith('http') &&
+            !l.startsWith('✱') &&
+            !l.startsWith('[') &&
+            !l.includes('쉐어링크') &&
+            !l.includes('쿠폰') &&
+            !l.includes('할인'),
+        );
+      if (nameLine && !title) setTitle(nameLine);
+    }
+  };
+
   const analyze = async () => {
+    const m = url.match(/https?:\/\/\S+/);
+    const link = m ? m[0] : url;
+    if (link !== url) setUrl(link);
     setError('');
     setLoading(true);
     setPreview(null);
@@ -50,7 +76,7 @@ export default function AdminWritePage() {
       const res = await fetch('/api/toss/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: link }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '분석 실패');
@@ -65,6 +91,8 @@ export default function AdminWritePage() {
   };
 
   const submit = async () => {
+    const m = url.match(/https?:\/\/\S+/);
+    const link = m ? m[0] : url;
     setError('');
     setLoading(true);
     try {
@@ -72,7 +100,7 @@ export default function AdminWritePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url,
+          url: link,
           price: price ? Number(price.replace(/[^0-9]/g, '')) : null,
           author,
           title: manual ? title : undefined,
@@ -114,13 +142,14 @@ export default function AdminWritePage() {
         <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-5 space-y-4">
           <div>
             <label className="block text-sm text-gray-400 mb-1.5">
-              토스 쉐어링크 (앱에서 상품 → 공유 → 링크 복사)
+              토스 쉐어링크 (복사한 내용을 그대로 붙여넣기)
             </label>
             <div className="flex gap-2">
               <input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://toss.im/_m/xxxxxxx"
+                onPaste={handlePaste}
+                placeholder="https://toss.im/_m/xxxxxxx (문구 전체 붙여넣기 가능)"
                 className="flex-1 bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
               />
               <button
