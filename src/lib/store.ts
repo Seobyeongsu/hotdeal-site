@@ -30,38 +30,71 @@ const DATA_FILE = '.data/posts.json';
 function getDataPath(): string {
   const root = process.env.PROJECT_ROOT || process.cwd();
   const file = join(root, DATA_FILE);
-  mkdirSync(dirname(file), { recursive: true });
+  try { mkdirSync(dirname(file), { recursive: true }); } catch {}
   return file;
 }
 
+let _fileLoaded = false;
+let _fileStore: Record<string, string> = {};
 function readAll(): Record<string, string> {
-  try { return JSON.parse(readFileSync(getDataPath(), 'utf-8')); } catch { return {}; }
+  if (_fileLoaded) return _fileStore;
+  try { _fileStore = JSON.parse(readFileSync(getDataPath(), 'utf-8')); } catch { _fileStore = {}; }
+  _fileLoaded = true;
+  return _fileStore;
 }
 
 function writeAll(data: Record<string, string>) {
-  writeFileSync(getDataPath(), JSON.stringify(data), 'utf-8');
+  _fileStore = data;
+  try { writeFileSync(getDataPath(), JSON.stringify(data), 'utf-8'); } catch {}
+}
+
+const isWorkers = typeof globalThis?.caches !== 'undefined';
+
+function kvBinding(): any {
+  try { return (globalThis as any).__kvBindings?.DEALS_KV || (process.env as any)?.DEALS_KV || null; } catch { return null; }
 }
 
 export async function kvGet(key: string): Promise<string | null> {
+  const kv = kvBinding();
+  if (kv?.get) return (await kv.get(key)) as string | null;
   return readAll()[key] ?? null;
 }
 
 export async function kvSet(key: string, value: string): Promise<void> {
+  const kv = kvBinding();
+  if (kv?.put) { await kv.put(key, value); return; }
   const all = readAll();
   all[key] = value;
   writeAll(all);
 }
 
+export async function kvDelete(key: string): Promise<void> {
+  const kv = kvBinding();
+  if (kv?.delete) { await kv.delete(key); return; }
+  const all = readAll();
+  delete all[key];
+  writeAll(all);
+}
+
+export async function kvList(prefix: string): Promise<string[]> {
+  const kv = kvBinding();
+  if (kv?.list) {
+    const result = await kv.list({ prefix });
+    return result.keys?.map((k: any) => k.name) || [];
+  }
+  return Object.keys(readAll()).filter(k => k.startsWith(prefix));
+}
+
 export async function listPosts(): Promise<BoardPost[]> {
-  const raw = readAll()[INDEX_KEY];
+  const raw = await kvGet(INDEX_KEY);
   if (!raw) return [];
   try { return JSON.parse(raw) as BoardPost[]; } catch { return []; }
 }
 
 export async function getPost(id: string): Promise<BoardPost | null> {
-  const raw = readAll()[`post:${id}`];
+  const raw = await kvGet(`post:${id}`);
   if (raw) {
-    try { return JSON.parse(raw) as BoardPost[] extends (infer U)[] ? U : never; } catch { /* fall through */ }
+    try { return JSON.parse(raw) as BoardPost; } catch { /* fall through */ }
   }
   const posts = await listPosts();
   return posts.find((p) => p.id === id) ?? null;
@@ -74,53 +107,39 @@ export async function addPost(data: Omit<BoardPost, 'id' | 'createdAt' | 'views'
     createdAt: new Date().toISOString(),
     views: 0,
   };
-  const all = readAll();
   let posts: BoardPost[] = [];
-  try { posts = JSON.parse(all[INDEX_KEY] || '[]'); } catch { /* empty */ }
+  const raw = await kvGet(INDEX_KEY);
+  try { posts = JSON.parse(raw || '[]'); } catch { /* empty */ }
   posts.unshift(post);
-  all[`post:${post.id}`] = JSON.stringify(post);
-  all[INDEX_KEY] = JSON.stringify(posts.slice(0, MAX_POSTS));
-  writeAll(all);
+  await kvSet(`post:${post.id}`, JSON.stringify(post));
+  await kvSet(INDEX_KEY, JSON.stringify(posts.slice(0, MAX_POSTS)));
   return post;
 }
 
 export async function deletePost(id: string): Promise<boolean> {
-  const all = readAll();
   let posts: BoardPost[] = [];
-  try { posts = JSON.parse(all[INDEX_KEY] || '[]'); } catch { return false; }
+  const raw = await kvGet(INDEX_KEY);
+  try { posts = JSON.parse(raw || '[]'); } catch { return false; }
   const idx = posts.findIndex((p) => p.id === id);
   if (idx < 0) return false;
   posts.splice(idx, 1);
-  all[INDEX_KEY] = JSON.stringify(posts);
-  delete all[`post:${id}`];
-  writeAll(all);
+  await kvSet(INDEX_KEY, JSON.stringify(posts));
+  await kvDelete(`post:${id}`);
   return true;
 }
 
 export async function bumpViews(id: string): Promise<void> {
-  const all = readAll();
   let posts: BoardPost[] = [];
-  try { posts = JSON.parse(all[INDEX_KEY] || '[]'); } catch { return; }
+  const raw = await kvGet(INDEX_KEY);
+  try { posts = JSON.parse(raw || '[]'); } catch { return; }
   const idx = posts.findIndex((p) => p.id === id);
   if (idx < 0) return;
   posts[idx].views = (posts[idx].views || 0) + 1;
-  const raw = all[`post:${id}`];
-  if (raw) {
-    try { const p = JSON.parse(raw); p.views = posts[idx].views; all[`post:${id}`] = JSON.stringify(p); } catch { /* ok */ }
+  const postRaw = await kvGet(`post:${id}`);
+  if (postRaw) {
+    try { const p = JSON.parse(postRaw); p.views = posts[idx].views; await kvSet(`post:${id}`, JSON.stringify(p)); } catch {}
   }
-  all[INDEX_KEY] = JSON.stringify(posts);
-  writeAll(all);
+  await kvSet(INDEX_KEY, JSON.stringify(posts));
 }
 
-// Cloudflare Workers KV 바인딩
-export async function kvGetCloudflare(key: string): Promise<string | null> {
-  const kv = (process.env as any)?.DEALS_KV;
-  if (kv?.get) return (await kv.get(key)) as string | null;
-  return kvGet(key);
-}
-
-export async function kvSetCloudflare(key: string, value: string): Promise<void> {
-  const kv = (process.env as any)?.DEALS_KV;
-  if (kv?.put) { await kv.put(key, value); return; }
-  return kvSet(key, value);
-}
+export { kvGet as kvGetCloudflare, kvSet as kvSetCloudflare };
