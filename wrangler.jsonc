@@ -20,6 +20,9 @@
   "images": {
     "binding": "IMAGES"
   },
+  "vars": {
+    "PROJECT_ROOT": "C:\\Users\\pc\\Desktop\\hotdeal-site"
+  },
   "kv_namespaces": [
     {
       "binding": "VINEXT_KV_CACHE",
