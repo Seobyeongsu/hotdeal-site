@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { execSync } from 'node:child_process';
 
 const TOSS_TOKEN_URL = 'https://oauth2.cert.toss.im/token';
 const TOSS_API_BASE = 'https://sharelink.toss.im';
-const CF_API_BASE = 'https://api.cloudflare.com/client/v4';
 
 function loadEnv() {
   const raw = readFileSync(join(process.cwd(), '.env.local'), 'utf-8');
@@ -28,9 +28,46 @@ async function sendTelegram(token, chatId, text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
     });
-    log(`텔레그램 발송 완료`);
+    log('텔레그램 발송 완료');
   } catch (e) {
     log(`텔레그램 발송 실패: ${e.message}`);
+  }
+}
+
+let _nsId;
+function nsId() {
+  if (!_nsId) _nsId = loadEnv().CF_KV_NAMESPACE_ID;
+  return _nsId;
+}
+
+function kvGet(key) {
+  try {
+    const out = execSync(
+      `npx wrangler kv key get --namespace-id ${nsId()} --remote "${key}"`,
+      { encoding: 'utf-8', timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'] }
+    ).trim();
+    if (!out || out.includes('Value not found') || out.includes('not found')) return null;
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+function kvPut(key, value) {
+  const json = typeof value === 'string' ? value : JSON.stringify(value);
+  const tmpFile = join(process.cwd(), '.data', '_kv_tmp.json');
+  try {
+    writeFileSync(tmpFile, json, 'utf-8');
+    execSync(
+      `npx wrangler kv key put --namespace-id ${nsId()} --remote "${key}" --path "${tmpFile}"`,
+      { encoding: 'utf-8', timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'] }
+    );
+    return true;
+  } catch (e) {
+    log(`  KV put 실패 (${key}): ${e.message?.slice(0, 100)}`);
+    return false;
+  } finally {
+    try { unlinkSync(tmpFile); } catch {}
   }
 }
 
@@ -54,9 +91,7 @@ async function fetchBestSelling(token, size = 30) {
   const res = await fetch(`${TOSS_API_BASE}/openapi/products/best-selling?size=${size}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (res.status === 403) {
-    throw new Error('ACCESS_DENIED: IP가 화이트리스트에 없습니다');
-  }
+  if (res.status === 403) throw new Error('ACCESS_DENIED: IP가 화이트리스트에 없습니다');
   const json = await res.json();
   if (json.resultType !== 'SUCCESS') throw new Error(json.error?.reason || '조회 실패');
   return json.success?.items || [];
@@ -73,51 +108,15 @@ async function createShareLink(token, tacaItemId, publisherId) {
   return json.success;
 }
 
-async function cfKVGet(env, key) {
-  const res = await fetch(
-    `${CF_API_BASE}/accounts/${env.CF_ACCOUNT_ID}/storage/kv/namespaces/${env.CF_KV_NAMESPACE_ID}/values/${encodeURIComponent(key)}`,
-    { headers: { Authorization: `Bearer ${env.CF_API_TOKEN}` } }
-  );
-  if (!res.ok) return null;
-  return await res.text();
-}
-
-async function cfKVPut(env, key, value) {
-  const res = await fetch(
-    `${CF_API_BASE}/accounts/${env.CF_ACCOUNT_ID}/storage/kv/namespaces/${env.CF_KV_NAMESPACE_ID}/values/${encodeURIComponent(key)}`,
-    {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${env.CF_API_TOKEN}`, 'Content-Type': 'text/plain' },
-      body: typeof value === 'string' ? value : JSON.stringify(value),
-    }
-  );
-  const json = await res.json();
-  if (!json.success) throw new Error(JSON.stringify(json.errors));
-}
-
-async function cfKVBulkPut(env, items) {
-  if (items.length === 0) return;
-  const res = await fetch(
-    `${CF_API_BASE}/accounts/${env.CF_ACCOUNT_ID}/storage/kv/namespaces/${env.CF_KV_NAMESPACE_ID}/bulk`,
-    {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${env.CF_API_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(items.map(({ key, value }) => ({ key, value: JSON.stringify(value) }))),
-    }
-  );
-  const json = await res.json();
-  if (!json.success) throw new Error(JSON.stringify(json.errors));
-}
-
 async function main() {
   const env = loadEnv();
-  const token = env.TELEGRAM_BOT_TOKEN;
+  const tgToken = env.TELEGRAM_BOT_TOKEN;
   const chatId = env.TELEGRAM_CHAT_ID;
 
-  if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID || !env.CF_KV_NAMESPACE_ID) {
-    const msg = '❌ Cloudflare 설정 미완료 (.env.local에 CF_API_TOKEN/CF_ACCOUNT_ID/CF_KV_NAMESPACE_ID 필요)';
+  if (!env.CF_KV_NAMESPACE_ID) {
+    const msg = '❌ .env.local에 CF_KV_NAMESPACE_ID 필요';
     log(msg);
-    await sendTelegram(token, chatId, msg);
+    await sendTelegram(tgToken, chatId, msg);
     process.exit(1);
   }
 
@@ -130,7 +129,7 @@ async function main() {
   } catch (e) {
     const msg = `❌ 토스 토큰 실패: ${e.message}`;
     log(msg);
-    await sendTelegram(token, chatId, msg);
+    await sendTelegram(tgToken, chatId, msg);
     process.exit(1);
   }
 
@@ -142,19 +141,26 @@ async function main() {
     if (e.message.includes('ACCESS_DENIED')) {
       const ipRes = await fetch('https://api.ipify.org?format=json');
       const { ip } = await ipRes.json();
-      const msg = `🚫 <b>IP 변경 감지!</b>\n\n현재 IP: <code>${ip}</code>\n토스 어드민에서 새 IP를 등록해주세요.\n\n(이 알림은 IP가 복구되면 자동으로 사라집니다)`;
+      const msg = `🚫 <b>IP 변경 감지!</b>\n현재 IP: <code>${ip}</code>\n토스 어드민에서 새 IP를 등록해주세요.`;
       log(msg.replace(/<[^>]+>/g, ''));
-      await sendTelegram(token, chatId, msg);
+      await sendTelegram(tgToken, chatId, msg);
     } else {
       const msg = `❌ 베스트 조회 실패: ${e.message}`;
       log(msg);
-      await sendTelegram(token, chatId, msg);
+      await sendTelegram(tgToken, chatId, msg);
     }
     process.exit(1);
   }
 
   const publisherId = env.TOSS_PUBLISHER_ID || env.TOSS_MEMBER_ID;
-  const bulkItems = [];
+
+  let indexRaw = kvGet('posts:index');
+  let index = [];
+  try {
+    const parsed = JSON.parse(indexRaw || '[]');
+    index = Array.isArray(parsed) ? parsed : [];
+  } catch { index = []; }
+
   let created = 0;
   let skipped = 0;
   let linkFailed = 0;
@@ -163,8 +169,8 @@ async function main() {
     try {
       if (!item.tacaItemId || !item.displayName) continue;
 
-      const existingPost = await cfKVGet(env, `post:taca:${item.tacaItemId}`);
-      if (existingPost) { skipped++; continue; }
+      const existing = kvGet(`post:taca:${item.tacaItemId}`);
+      if (existing) { skipped++; continue; }
 
       let shortUrl = '';
       try {
@@ -199,41 +205,25 @@ async function main() {
         views: 0,
       };
 
-      bulkItems.push({ key: `post:${postId}`, value: post });
-      bulkItems.push({ key: `post:taca:${item.tacaItemId}`, value: '1' });
+      kvPut(`post:${postId}`, post);
+      kvPut(`post:taca:${item.tacaItemId}`, '1');
+      index = index.filter((p) => p.id !== postId);
+      index.unshift(post);
       created++;
+      log(`  ✅ ${item.displayName.slice(0, 30)}... ${item.displayPrice}원`);
     } catch (e) {
       log(`  ⚠️ ${item.displayName}: ${e.message}`);
       linkFailed++;
     }
   }
 
-  if (bulkItems.length > 0) {
-    try {
-      await cfKVBulkPut(env, bulkItems);
-      log(`✅ KV 저장 완료 (${bulkItems.length}개 키)`);
-    } catch (e) {
-      const msg = `❌ KV 저장 실패: ${e.message}`;
-      log(msg);
-      await sendTelegram(token, chatId, msg);
-      process.exit(1);
-    }
-  }
-
-  const indexKey = 'posts:index';
-  let index = [];
-  try {
-    const raw = await cfKVGet(env, indexKey);
-    if (raw) index = JSON.parse(raw);
-  } catch {}
-
-  const newIds = bulkItems.filter(i => i.key.startsWith('post:toss-')).map(i => i.key.replace('post:', ''));
-  index = [...new Set([...newIds, ...index])].slice(0, 500);
-  await cfKVPut(env, indexKey, index);
+  index = index.slice(0, 500);
+  kvPut('posts:index', index);
+  log(`✅ KV 저장 완료 (인덱스 ${index.length}건)`);
 
   const summary = `✅ <b>수집 완료</b>\n\n📊 신규: ${created}건\n⏭️ 기존: ${skipped}건\n❌ 링크실패: ${linkFailed}건\n📦 총 ${items.length}건 조회`;
   log(summary.replace(/<[^>]+>/g, ''));
-  await sendTelegram(token, chatId, summary);
+  await sendTelegram(tgToken, chatId, summary);
 }
 
 main().catch((e) => {

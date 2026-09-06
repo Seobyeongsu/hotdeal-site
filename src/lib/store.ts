@@ -48,20 +48,29 @@ function writeAll(data: Record<string, string>) {
   try { writeFileSync(getDataPath(), JSON.stringify(data), 'utf-8'); } catch {}
 }
 
-const isWorkers = typeof globalThis?.caches !== 'undefined';
-
-function kvBinding(): any {
-  try { return (globalThis as any).__kvBindings?.DEALS_KV || (process.env as any)?.DEALS_KV || null; } catch { return null; }
+let _cfEnv: any = null;
+let _cfEnvTried = false;
+async function kvBinding(): Promise<any> {
+  if (!_cfEnvTried) {
+    _cfEnvTried = true;
+    try {
+      const mod = await import('cloudflare:workers');
+      _cfEnv = mod.env ?? null;
+    } catch {
+      _cfEnv = null;
+    }
+  }
+  return _cfEnv?.DEALS_KV ?? null;
 }
 
 export async function kvGet(key: string): Promise<string | null> {
-  const kv = kvBinding();
+  const kv = await kvBinding();
   if (kv?.get) return (await kv.get(key)) as string | null;
   return readAll()[key] ?? null;
 }
 
 export async function kvSet(key: string, value: string): Promise<void> {
-  const kv = kvBinding();
+  const kv = await kvBinding();
   if (kv?.put) { await kv.put(key, value); return; }
   const all = readAll();
   all[key] = value;
@@ -69,7 +78,7 @@ export async function kvSet(key: string, value: string): Promise<void> {
 }
 
 export async function kvDelete(key: string): Promise<void> {
-  const kv = kvBinding();
+  const kv = await kvBinding();
   if (kv?.delete) { await kv.delete(key); return; }
   const all = readAll();
   delete all[key];
@@ -77,7 +86,7 @@ export async function kvDelete(key: string): Promise<void> {
 }
 
 export async function kvList(prefix: string): Promise<string[]> {
-  const kv = kvBinding();
+  const kv = await kvBinding();
   if (kv?.list) {
     const result = await kv.list({ prefix });
     return result.keys?.map((k: any) => k.name) || [];
@@ -88,7 +97,24 @@ export async function kvList(prefix: string): Promise<string[]> {
 export async function listPosts(): Promise<BoardPost[]> {
   const raw = await kvGet(INDEX_KEY);
   if (!raw) return [];
-  try { return JSON.parse(raw) as BoardPost[]; } catch { return []; }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      if (parsed.length === 0) return [];
+      const first = parsed[0];
+      if (typeof first === 'string') {
+        // ID 배열 형식 (collect-to-kv가 저장한 형태): post:{id} 상세 조회
+        const posts: BoardPost[] = [];
+        for (const id of parsed as string[]) {
+          const detail = await getPost(id);
+          if (detail) posts.push(detail);
+        }
+        return posts;
+      }
+      return parsed as BoardPost[];
+    }
+    return [];
+  } catch { return []; }
 }
 
 export async function getPost(id: string): Promise<BoardPost | null> {

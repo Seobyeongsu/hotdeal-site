@@ -20,17 +20,15 @@
   "images": {
     "binding": "IMAGES"
   },
-  "vars": {
-    "PROJECT_ROOT": "C:\\Users\\pc\\Desktop\\hotdeal-site"
-  },
+  "vars": {},
   "kv_namespaces": [
     {
       "binding": "VINEXT_KV_CACHE",
-      "id": "<your-kv-namespace-id>"
+      "id": "186942978b3a420493d82a8cd19c8f85"
     },
     {
       "binding": "DEALS_KV",
-      "id": "<your-deals-kv-namespace-id>"
+      "id": "275ea614d40940e3a8a13638e19c24f2"
     }
   ]
 }
