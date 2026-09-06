@@ -45,21 +45,31 @@ function sortPosts<T extends { discountRate: number | null; reviewCount: number 
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ cat?: string; sort?: string }>;
+  searchParams: Promise<{ cat?: string; sort?: string; q?: string }>;
 }) {
-  const { cat, sort } = await searchParams;
+  const { cat, sort, q } = await searchParams;
   const activeSort = sort && /^[a-z]+:(asc|desc)$/.test(sort) ? sort : '';
+  const activeQ = (q || '').trim();
   const allPosts = await listPosts();
   const badges = await getPriceBadges(allPosts);
   const cats = Array.from(new Set(allPosts.map((p) => p.categoryName).filter(Boolean) as string[]));
   const activeCat = cat && cats.includes(cat) ? cat : '전체';
-  const basePosts = activeCat === '전체' ? allPosts : allPosts.filter((p) => p.categoryName === activeCat);
+  const basePosts = (activeCat === '전체' ? allPosts : allPosts.filter((p) => p.categoryName === activeCat))
+    .filter((p) => !activeQ || p.title.toLowerCase().includes(activeQ.toLowerCase()));
   const posts = sortPosts(basePosts, activeSort);
   const href = (c: string, s: string) => {
     const q = new URLSearchParams();
     if (c !== '전체') q.set('cat', c);
     if (s) q.set('sort', s);
+    if (activeQ) q.set('q', activeQ);
     const qs = q.toString();
+    return qs ? `/?${qs}` : '/';
+  };
+  const hrefNoQ = (c: string, s: string) => {
+    const p = new URLSearchParams();
+    if (c !== '전체') p.set('cat', c);
+    if (s) p.set('sort', s);
+    const qs = p.toString();
     return qs ? `/?${qs}` : '/';
   };
   const featuredPosts = [...allPosts]
@@ -74,7 +84,7 @@ export default async function HomePage({
     <>
       <Header />
       <main className="max-w-4xl mx-auto px-4 py-6">
-        {activeCat === '전체' && featuredPosts.length > 0 && (
+        {activeCat === '전체' && !activeQ && featuredPosts.length > 0 && (
           <section className="mb-7">
             <div className="flex items-end justify-between gap-4 mb-3">
               <div>
@@ -118,8 +128,33 @@ export default async function HomePage({
           </section>
         )}
 
+        <form method="GET" action="/" className="mb-4 flex gap-2">
+          <input
+            type="text"
+            name="q"
+            defaultValue={activeQ}
+            placeholder="상품 검색 (예: 화장지, 계란, 티셔츠)"
+            className="flex-1 bg-white border border-[#e3e6eb] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-400"
+          />
+          {activeCat !== '전체' && <input type="hidden" name="cat" value={activeCat} />}
+          {activeSort && <input type="hidden" name="sort" value={activeSort} />}
+          <button
+            type="submit"
+            className="bg-red-600 hover:bg-red-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+          >
+            검색
+          </button>
+          {activeQ && (
+            <a href={hrefNoQ(activeCat, activeSort)} className="self-center text-xs text-gray-500 hover:text-gray-900 px-2">
+              취소
+            </a>
+          )}
+        </form>
+
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold flex items-center gap-2">전체 핫딜</h2>
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            {activeQ ? `'${activeQ}' 검색 결과` : '전체 핫딜'}
+          </h2>
           <span className="text-xs text-gray-600">총 {posts.length}개</span>
         </div>
 
