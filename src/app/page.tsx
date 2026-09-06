@@ -20,17 +20,48 @@ function isNew(iso: string): boolean {
   return Date.now() - new Date(iso).getTime() < 24 * 3600 * 1000;
 }
 
+const SORT_KEYS = ['discount', 'review', 'rating'] as const;
+
+function sortPosts<T extends { discountRate: number | null; reviewCount: number | null; rating: number | null }>(
+  posts: T[],
+  sort: string | undefined,
+): T[] {
+  if (!sort) return posts;
+  const [key, dir] = sort.split(':');
+  if (!SORT_KEYS.includes(key as (typeof SORT_KEYS)[number])) return posts;
+  const mul = dir === 'asc' ? 1 : -1;
+  const val = (p: T) =>
+    key === 'discount' ? p.discountRate : key === 'review' ? p.reviewCount : p.rating;
+  return [...posts].sort((a, b) => {
+    const av = val(a);
+    const bv = val(b);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return (av - bv) * mul;
+  });
+}
+
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ cat?: string }>;
+  searchParams: Promise<{ cat?: string; sort?: string }>;
 }) {
-  const { cat } = await searchParams;
+  const { cat, sort } = await searchParams;
+  const activeSort = sort && /^[a-z]+:(asc|desc)$/.test(sort) ? sort : '';
   const allPosts = await listPosts();
   const badges = await getPriceBadges(allPosts);
   const cats = Array.from(new Set(allPosts.map((p) => p.categoryName).filter(Boolean) as string[]));
   const activeCat = cat && cats.includes(cat) ? cat : '전체';
-  const posts = activeCat === '전체' ? allPosts : allPosts.filter((p) => p.categoryName === activeCat);
+  const basePosts = activeCat === '전체' ? allPosts : allPosts.filter((p) => p.categoryName === activeCat);
+  const posts = sortPosts(basePosts, activeSort);
+  const href = (c: string, s: string) => {
+    const q = new URLSearchParams();
+    if (c !== '전체') q.set('cat', c);
+    if (s) q.set('sort', s);
+    const qs = q.toString();
+    return qs ? `/?${qs}` : '/';
+  };
   const featuredPosts = [...allPosts]
     .filter((post) => post.price != null && post.price > 0)
     .sort((a, b) => {
@@ -93,11 +124,11 @@ export default async function HomePage({
         </div>
 
         {cats.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-4">
+          <div className="flex flex-wrap gap-1.5 mb-2">
             {['전체', ...cats].map((c) => (
               <Link
                 key={c}
-                href={c === '전체' ? '/' : `/?cat=${encodeURIComponent(c)}`}
+                href={href(c, activeSort)}
                 className={`text-xs px-3 py-1.5 rounded-full border transition ${
                   activeCat === c
                     ? 'bg-red-600 border-red-600 text-white font-semibold'
@@ -109,6 +140,39 @@ export default async function HomePage({
             ))}
           </div>
         )}
+
+        <div className="flex flex-wrap gap-1.5 mb-4 items-center">
+          <span className="text-[10px] text-gray-500 font-semibold mr-0.5">정렬</span>
+          <Link
+            href={href(activeCat, '')}
+            className={`text-xs px-2.5 py-1 rounded-full border transition ${
+              !activeSort
+                ? 'bg-gray-900 border-gray-900 text-white font-semibold'
+                : 'bg-white border-[#e3e6eb] text-gray-500 hover:border-gray-500 hover:text-gray-900'
+            }`}
+          >
+            최신순
+          </Link>
+          {SORT_KEYS.map((k) => {
+            const isOn = activeSort.startsWith(`${k}:`);
+            const dir = activeSort === `${k}:desc` ? 'desc' : 'asc';
+            const next = isOn ? `${k}:${dir === 'desc' ? 'asc' : 'desc'}` : `${k}:desc`;
+            const label = k === 'discount' ? '할인율' : k === 'review' ? '리뷰' : '별점';
+            return (
+              <Link
+                key={k}
+                href={href(activeCat, next)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                  isOn
+                    ? 'bg-gray-900 border-gray-900 text-white font-semibold'
+                    : 'bg-white border-[#e3e6eb] text-gray-500 hover:border-gray-500 hover:text-gray-900'
+                }`}
+              >
+                {label} {isOn ? (dir === 'desc' ? '↓' : '↑') : ''}
+              </Link>
+            );
+          })}
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {posts.length === 0 ? (
