@@ -208,6 +208,13 @@ export default async function HomePage({
                         최저가
                       </span>
                     )}
+                    {post.soldOut && (
+                      <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+                        <span className="border-2 border-white text-white text-base font-bold px-4 py-1.5 rounded-full tracking-widest">
+                          품절
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="w-full aspect-square bg-[#f1f2f5] flex items-center justify-center text-3xl">

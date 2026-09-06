@@ -36,8 +36,17 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
           </div>
 
           {post.image && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={post.image} alt="" className="w-full max-h-[420px] object-contain bg-white" />
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={post.image} alt="" className="w-full max-h-[420px] object-contain bg-white" />
+              {post.soldOut && (
+                <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+                  <span className="border-2 border-white text-white text-lg font-bold px-5 py-2 rounded-full tracking-widest">
+                    품절
+                  </span>
+                </div>
+              )}
+            </div>
           )}
 
           <div className="p-5 space-y-4">

@@ -151,7 +151,7 @@ async function fetchDetail(token, tacaItemIds) {
   return map;
 }
 
-async function cleanupDeadPosts(tossToken, index, bestIds) {
+async function cleanupDeadPosts(tossToken, index, bestMap) {
   const ttlDays = Number(loadEnv().POST_TTL_DAYS || 60);
   const ttlCutoff = Date.now() - ttlDays * 86400000;
   const dead = [];
@@ -166,7 +166,15 @@ async function cleanupDeadPosts(tossToken, index, bestIds) {
     }
     const tid = Number(p.tacaItemId);
     if (!tid) continue;
-    if (bestIds.has(tid)) continue;
+    if (bestMap.has(tid)) {
+      const nowOut = bestMap.get(tid).isSoldOut === true;
+      if (!!p.soldOut !== nowOut) {
+        p.soldOut = nowOut || null;
+        await kvPut(`post:${p.id}`, p);
+        log(`  ${nowOut ? '📦 품절 표시' : '🟢 품절 해제'}: ${String(p.title).slice(0, 35)}`);
+      }
+      continue;
+    }
     toCheck.push({ post: p, tid });
   }
 
@@ -183,8 +191,10 @@ async function cleanupDeadPosts(tossToken, index, bestIds) {
     for (const { post, tid } of chunk) {
       const d = map.get(tid);
       if (!d) { dead.push({ post, reason: '판매종료' }); continue; }
-      if (d.isSoldOut === true) { dead.push({ post, reason: '품절' }); continue; }
+      const nowOut = d.isSoldOut === true;
       const np = d.displayPrice != null ? Number(d.displayPrice) : null;
+      let changed = false;
+      if (!!post.soldOut !== nowOut) { post.soldOut = nowOut || null; changed = true; }
       if (np != null && post.price !== np) {
         post.price = np;
         if (d.originalPrice != null) post.originalPrice = Number(d.originalPrice);
@@ -192,10 +202,11 @@ async function cleanupDeadPosts(tossToken, index, bestIds) {
         if (d.originalPrice != null && np != null && Number(d.originalPrice) > np) {
           post.merchant = `${Number(d.originalPrice).toLocaleString()}원 →`;
         }
-        await kvPut(`post:${post.id}`, post);
         await recordPrice({ tacaItemId: tid, displayPrice: np });
         refreshed++;
+        changed = true;
       }
+      if (changed) await kvPut(`post:${post.id}`, post);
     }
   }
 
@@ -290,11 +301,11 @@ async function main() {
     index = Array.isArray(parsed) ? parsed : [];
   } catch { index = []; }
 
-  const bestIds = new Set(items.map((i) => Number(i.tacaItemId)).filter(Boolean));
+  const bestMap = new Map(items.map((i) => [Number(i.tacaItemId), i]).filter(([k]) => k));
   let removed = [];
   let refreshed = 0;
   try {
-    const res = await cleanupDeadPosts(tossToken, index, bestIds);
+    const res = await cleanupDeadPosts(tossToken, index, bestMap);
     removed = res.dead;
     refreshed = res.refreshed;
     if (res.deadIds.size) index = index.filter((p) => !res.deadIds.has(p.id));
@@ -342,6 +353,7 @@ async function main() {
         merchant: item.originalPrice && item.displayPrice && item.originalPrice > item.displayPrice
           ? `${Number(item.originalPrice).toLocaleString()}원 →` : null,
         source: '토스',
+        soldOut: item.isSoldOut === true ? true : null,
         tacaItemId: Number(item.tacaItemId),
         author: '자동수집',
         createdAt: new Date().toISOString(),
@@ -370,7 +382,9 @@ async function main() {
     ? `🗑️ 삭제: ${removed.length}건 (${Object.entries(rmCounts).map(([k, v]) => `${k} ${v}`).join(', ')})\n`
     : '';
   const rfInfo = refreshed ? `🔄 가격갱신: ${refreshed}건\n` : '';
-  const summary = `✅ <b>수집 완료</b>\n\n📊 신규: ${created}건\n⏭️ 기존: ${skipped}건\n❌ 링크실패: ${linkFailed}건\n${rmInfo}${rfInfo}📦 총 ${items.length}건 조회`;
+  const soldOutCount = index.filter((p) => p.soldOut).length;
+  const soInfo = soldOutCount ? `📦 품절 표시: ${soldOutCount}건\n` : '';
+  const summary = `✅ <b>수집 완료</b>\n\n📊 신규: ${created}건\n⏭️ 기존: ${skipped}건\n❌ 링크실패: ${linkFailed}건\n${rmInfo}${rfInfo}${soInfo}📦 총 ${items.length}건 조회`;
   log(summary.replace(/<[^>]+>/g, ''));
   await sendTelegram(tgToken, chatId, summary);
 }
