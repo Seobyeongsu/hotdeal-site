@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPost, bumpViews, deletePost } from '@/lib/store';
 import { isAdminRequest } from '@/lib/auth';
-import { isGuestRequest } from '@/lib/gate';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  if (!(await isGuestRequest(request))) {
-    return NextResponse.json({ error: '접속 비밀번호가 필요합니다.' }, { status: 401 });
-  }
   const { id } = await params;
   const post = await getPost(id);
   if (!post) {
