@@ -79,6 +79,20 @@ async function kvPut(key, value) {
   }
 }
 
+async function kvDelete(key) {
+  try {
+    const env = loadEnv();
+    const res = await fetch(kvUrl(env, key), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${env.CF_API_TOKEN}` },
+    });
+    return res.ok;
+  } catch (e) {
+    log(`  KV delete 오류 (${key}): ${e.message}`);
+    return false;
+  }
+}
+
 async function getTossToken(env) {
   const res = await fetch(TOSS_TOKEN_URL, {
     method: 'POST',
@@ -117,6 +131,82 @@ async function fetchAllBest(token, pageSize = 100, maxPages = 5) {
     cursor = s.nextCursor;
   }
   return all;
+}
+
+async function fetchDetail(token, tacaItemIds) {
+  const q = new URLSearchParams({ tacaItemIds: tacaItemIds.join(',') });
+  const res = await fetch(`${TOSS_API_BASE}/openapi/products/detail?${q.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 403) throw new Error('ACCESS_DENIED: IP가 화이트리스트에 없습니다');
+  const json = await res.json();
+  if (json.resultType !== 'SUCCESS') throw new Error(json.error?.reason || '상세 조회 실패');
+  const s = json.success;
+  const list = Array.isArray(s) ? s : (s?.items || s?.products || []);
+  const map = new Map();
+  for (const it of list) {
+    const id = Number(it.tacaItemId ?? it.itemId);
+    if (id) map.set(id, it);
+  }
+  return map;
+}
+
+async function cleanupDeadPosts(tossToken, index, bestIds) {
+  const ttlDays = Number(loadEnv().POST_TTL_DAYS || 60);
+  const ttlCutoff = Date.now() - ttlDays * 86400000;
+  const dead = [];
+  const toCheck = [];
+  let refreshed = 0;
+
+  for (const p of index) {
+    if (!p?.id) continue;
+    if (p.createdAt && new Date(p.createdAt).getTime() < ttlCutoff) {
+      dead.push({ post: p, reason: '만료' });
+      continue;
+    }
+    const tid = Number(p.tacaItemId);
+    if (!tid) continue;
+    if (bestIds.has(tid)) continue;
+    toCheck.push({ post: p, tid });
+  }
+
+  const CHUNK = 25;
+  for (let i = 0; i < toCheck.length; i += CHUNK) {
+    const chunk = toCheck.slice(i, i + CHUNK);
+    let map;
+    try {
+      map = await fetchDetail(tossToken, chunk.map((c) => c.tid));
+    } catch (e) {
+      log(`  ⚠️ 상세 조회 실패(이번 라운드 검증 생략): ${e.message}`);
+      continue;
+    }
+    for (const { post, tid } of chunk) {
+      const d = map.get(tid);
+      if (!d) { dead.push({ post, reason: '판매종료' }); continue; }
+      if (d.isSoldOut === true) { dead.push({ post, reason: '품절' }); continue; }
+      const np = d.displayPrice != null ? Number(d.displayPrice) : null;
+      if (np != null && post.price !== np) {
+        post.price = np;
+        if (d.originalPrice != null) post.originalPrice = Number(d.originalPrice);
+        if (d.discountRate != null) post.discountRate = Number(d.discountRate);
+        if (d.originalPrice != null && np != null && Number(d.originalPrice) > np) {
+          post.merchant = `${Number(d.originalPrice).toLocaleString()}원 →`;
+        }
+        await kvPut(`post:${post.id}`, post);
+        await recordPrice({ tacaItemId: tid, displayPrice: np });
+        refreshed++;
+      }
+    }
+  }
+
+  const deadIds = new Set();
+  for (const { post, reason } of dead) {
+    await kvDelete(`post:${post.id}`);
+    if (post.tacaItemId) await kvDelete(`post:taca:${post.tacaItemId}`);
+    deadIds.add(post.id);
+    log(`  🗑️ [${reason}] ${String(post.title).slice(0, 35)}`);
+  }
+  return { deadIds, dead, refreshed };
 }
 
 async function createShareLink(token, tacaItemId, publisherId) {
@@ -200,6 +290,18 @@ async function main() {
     index = Array.isArray(parsed) ? parsed : [];
   } catch { index = []; }
 
+  const bestIds = new Set(items.map((i) => Number(i.tacaItemId)).filter(Boolean));
+  let removed = [];
+  let refreshed = 0;
+  try {
+    const res = await cleanupDeadPosts(tossToken, index, bestIds);
+    removed = res.dead;
+    refreshed = res.refreshed;
+    if (res.deadIds.size) index = index.filter((p) => !res.deadIds.has(p.id));
+  } catch (e) {
+    log(`  ⚠️ 정리 단계 실패(건너뜀): ${e.message}`);
+  }
+
   let created = 0;
   let skipped = 0;
   let linkFailed = 0;
@@ -262,7 +364,13 @@ async function main() {
   await kvPut('posts:index', index);
   log(`✅ KV 저장 완료 (인덱스 ${index.length}건)`);
 
-  const summary = `✅ <b>수집 완료</b>\n\n📊 신규: ${created}건\n⏭️ 기존: ${skipped}건\n❌ 링크실패: ${linkFailed}건\n📦 총 ${items.length}건 조회`;
+  const rmCounts = {};
+  for (const r of removed) rmCounts[r.reason] = (rmCounts[r.reason] || 0) + 1;
+  const rmInfo = removed.length
+    ? `🗑️ 삭제: ${removed.length}건 (${Object.entries(rmCounts).map(([k, v]) => `${k} ${v}`).join(', ')})\n`
+    : '';
+  const rfInfo = refreshed ? `🔄 가격갱신: ${refreshed}건\n` : '';
+  const summary = `✅ <b>수집 완료</b>\n\n📊 신규: ${created}건\n⏭️ 기존: ${skipped}건\n❌ 링크실패: ${linkFailed}건\n${rmInfo}${rfInfo}📦 총 ${items.length}건 조회`;
   log(summary.replace(/<[^>]+>/g, ''));
   await sendTelegram(tgToken, chatId, summary);
 }
