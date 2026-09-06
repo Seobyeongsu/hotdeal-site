@@ -90,7 +90,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
               </p>
             )}
 
-            <ProductActions url={post.url} source={post.source} />
+            <ProductActions url={post.url} source={post.source} title={post.title} />
 
             {post.source === '토스' && (
               <p className="text-[11px] text-gray-600 text-center">

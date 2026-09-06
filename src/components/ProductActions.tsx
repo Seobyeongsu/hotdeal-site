@@ -2,19 +2,25 @@
 
 import { useState } from 'react';
 
-export default function ProductActions({ url, source }: { url: string; source: string }) {
+export default function ProductActions({ url, source, title }: { url: string; source: string; title?: string }) {
   const [copied, setCopied] = useState(false);
+
+  const disclosure =
+    source === '토스'
+      ? '이 링크로 구매 시, 이 포스팅은 토스쇼핑 쉐어링크 활동의 일환으로 일정액의 수수료를 제공받습니다.'
+      : '';
+  const shareText = [title, url, disclosure].filter(Boolean).join('\n\n');
 
   const share = async () => {
     try {
       if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({ title: document.title, url });
+        await navigator.share({ title: title || document.title, text: disclosure, url });
         return;
       }
       throw new Error('no-share-api');
     } catch {
       try {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(shareText);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } catch {
