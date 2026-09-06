@@ -116,6 +116,23 @@ async function createShareLink(token, tacaItemId, publisherId) {
   return json.success;
 }
 
+async function recordPrice(item) {
+  const tacaId = item?.tacaItemId;
+  const price = item.displayPrice != null ? Number(item.displayPrice) : null;
+  if (!tacaId || price == null) return;
+  const key = `toss:ph:${tacaId}`;
+  let history = [];
+  const raw = await kvGet(key);
+  try { if (raw) history = JSON.parse(raw); } catch {}
+  const today = new Date().toISOString().slice(0, 10);
+  const last = history[history.length - 1];
+  if (last && last.d === today) last.p = price;
+  else if (!last || last.p !== price) history.push({ d: today, p: price });
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+  history = history.filter((h) => new Date(h.d).getTime() >= cutoff).slice(-30);
+  if (history.length) await kvPut(key, history);
+}
+
 async function main() {
   const env = loadEnv();
   const tgToken = env.TELEGRAM_BOT_TOKEN;
@@ -176,6 +193,8 @@ async function main() {
   for (const item of items) {
     try {
       if (!item.tacaItemId || !item.displayName) continue;
+
+      await recordPrice(item);
 
       const existing = await kvGet(`post:taca:${item.tacaItemId}`);
       if (existing) { skipped++; continue; }

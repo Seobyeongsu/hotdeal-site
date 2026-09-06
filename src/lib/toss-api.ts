@@ -243,7 +243,48 @@ export interface PriceStat {
   days: number;
 }
 
+export interface PriceBadge {
+  lowest30: number;
+  days: number;
+  isLowestNow: boolean;
+}
+
 const priceKey = (itemId: number) => `toss:ph:${itemId}`;
+
+async function readHistory(itemId: number): Promise<{ d: string; p: number }[]> {
+  try {
+    const raw = await kvGet(priceKey(itemId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getPriceBadge(
+  tacaItemId: number | null | undefined,
+  price: number | null,
+): Promise<PriceBadge | null> {
+  if (!tacaItemId || price == null) return null;
+  const history = await readHistory(tacaItemId);
+  if (history.length < 2) return null;
+  const lowest30 = Math.min(...history.map((h) => h.p));
+  return { lowest30, days: history.length, isLowestNow: price <= lowest30 };
+}
+
+export async function getPriceBadges(
+  posts: { id?: string; tacaItemId?: number | null; price: number | null }[],
+): Promise<Map<string, PriceBadge | null>> {
+  const map = new Map<string, PriceBadge | null>();
+  await Promise.all(
+    posts.map(async (p) => {
+      if (p.id == null) return;
+      map.set(p.id, await getPriceBadge(p.tacaItemId, p.price));
+    }),
+  );
+  return map;
+}
 
 export async function recordPriceHistory(
   items: { tacaItemId: number; displayPrice: number | null }[]

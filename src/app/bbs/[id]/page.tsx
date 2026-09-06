@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getPost } from '@/lib/store';
+import { getPriceBadge } from '@/lib/toss-api';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ProductActions from '@/components/ProductActions';
@@ -11,6 +12,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const post = await getPost(id);
   if (!post) notFound();
+  const badge = await getPriceBadge(post.tacaItemId, post.price);
 
   return (
     <>
@@ -52,9 +54,21 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
                       {post.originalPrice.toLocaleString()}원
                     </p>
                   )}
-                  <span className="text-2xl font-bold text-red-600">
-                    {post.price.toLocaleString()}원
-                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-2xl font-bold text-red-600">
+                      {post.price.toLocaleString()}원
+                    </span>
+                    {badge?.isLowestNow && (
+                      <span className="bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-lg">
+                        30일 최저가
+                      </span>
+                    )}
+                  </div>
+                  {badge && !badge.isLowestNow && (
+                    <p className="text-xs text-green-700 mt-0.5">
+                      📉 30일 최저가 {badge.lowest30.toLocaleString()}원
+                    </p>
+                  )}
                 </div>
               )}
               {post.rating != null && <span className="text-yellow-400">★ {post.rating}</span>}

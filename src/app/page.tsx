@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { listPosts } from '@/lib/store';
+import { getPriceBadges } from '@/lib/toss-api';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -22,6 +23,7 @@ export default async function HomePage({
 }) {
   const { cat } = await searchParams;
   const allPosts = await listPosts();
+  const badges = await getPriceBadges(allPosts);
   const cats = Array.from(new Set(allPosts.map((p) => p.categoryName).filter(Boolean) as string[]));
   const activeCat = cat && cats.includes(cat) ? cat : '전체';
   const posts = activeCat === '전체' ? allPosts : allPosts.filter((p) => p.categoryName === activeCat);
@@ -61,7 +63,9 @@ export default async function HomePage({
               <p className="text-sm mt-1">새 핫딜이 올라오면 가장 먼저 확인하세요!</p>
             </div>
           ) : (
-            posts.map((post, i) => (
+            posts.map((post, i) => {
+              const badge = badges.get(post.id) ?? null;
+              return (
               <Link
                 key={post.id}
                 href={`/bbs/${post.id}`}
@@ -78,6 +82,11 @@ export default async function HomePage({
                     {post.discountRate != null && post.discountRate > 0 && (
                       <span className="absolute top-0 left-0 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-br-lg shadow-lg">
                         {post.discountRate}%
+                      </span>
+                    )}
+                    {badge?.isLowestNow && (
+                      <span className="absolute bottom-0 right-0 bg-green-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-tl-lg shadow-lg">
+                        최저가
                       </span>
                     )}
                   </div>
@@ -101,6 +110,11 @@ export default async function HomePage({
                         {post.originalPrice.toLocaleString()}
                       </span>
                     )}
+                    {badge?.isLowestNow && (
+                      <span className="text-[10px] bg-green-600/15 text-green-700 px-1.5 py-0.5 rounded font-semibold">
+                        30일 최저
+                      </span>
+                    )}
                     {Date.now() - new Date(post.createdAt).getTime() < 24 * 3600 * 1000 && (
                       <span className="text-[10px] bg-red-600/20 text-red-600 px-1.5 py-0.5 rounded font-semibold">
                         NEW
@@ -116,7 +130,8 @@ export default async function HomePage({
                   </div>
                 </div>
               </Link>
-            ))
+              );
+            })
           )}
         </div>
       </main>
