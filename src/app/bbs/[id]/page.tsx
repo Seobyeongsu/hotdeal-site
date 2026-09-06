@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getPost } from '@/lib/store';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import ProductActions from '@/components/ProductActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,18 +76,14 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
               </p>
             )}
 
-            <a
-              href={post.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-center bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 rounded-lg transition"
-            >
-              {post.source === '토스' ? '🛒 토스에서 구매하기 (쉐어링크 할인)' : '🛒 구매하기'}
-            </a>
+            <ProductActions url={post.url} source={post.source} />
 
-            <p className="text-[11px] text-gray-600 text-center">
-              이 포스팅은 토스쇼핑 쉐어링크 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.
-            </p>
+            {post.source === '토스' && (
+              <p className="text-[11px] text-gray-600 text-center">
+                공유된 링크로 구매 시, 이 포스팅은 토스쇼핑 쉐어링크 활동의 일환으로 일정액의 수수료를
+                제공받습니다.
+              </p>
+            )}
           </div>
         </article>
       </main>
