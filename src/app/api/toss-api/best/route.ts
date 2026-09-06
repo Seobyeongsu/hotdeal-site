@@ -46,6 +46,19 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json({ items, nextCursor: result.nextCursor, hasNext: result.hasNext });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || '조회 실패' }, { status: 502 });
+    const msg: string = e.message || '조회 실패';
+    if (msg.includes('ACCESS_DENIED') || msg.includes('접근 권한')) {
+      let ip = '확인 실패';
+      try {
+        ip = (await (await fetch('https://api.ipify.org?format=json')).json()).ip;
+      } catch {
+        /* ignore */
+      }
+      return NextResponse.json(
+        { error: `토스가 접근을 차단했습니다. 현재 IP ${ip} 을(를) 쉐어링크 관리자 페이지 IP 화이트리스트에 등록하세요.` },
+        { status: 403 },
+      );
+    }
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }
