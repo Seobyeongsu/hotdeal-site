@@ -77,23 +77,23 @@ export default function AdminPage() {
       <Header />
       <main className="max-w-3xl mx-auto px-4 py-6">
         {checking ? (
-          <p className="text-center text-gray-500 py-16">확인 중...</p>
+          <p className="text-center text-gray-600 py-16">확인 중...</p>
         ) : !ok ? (
           <div className="max-w-sm mx-auto mt-16">
             <h1 className="text-lg font-bold mb-4 flex items-center gap-2">
               <span>🔒</span> 관리자 로그인
             </h1>
-            <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-5 space-y-3">
+            <div className="bg-white border border-[#e3e6eb] rounded-xl p-5 space-y-3">
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && password && login()}
                 placeholder="관리자 비밀번호"
-                className="w-full bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
+                className="w-full bg-[#f7f8fa] border border-[#e3e6eb] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
               />
               {error && (
-                <p className="text-sm text-red-400 bg-red-600/10 border border-red-600/30 rounded-lg px-3 py-2">
+                <p className="text-sm text-red-600 bg-red-600/10 border border-red-600/30 rounded-lg px-3 py-2">
                   {error}
                 </p>
               )}
@@ -105,7 +105,7 @@ export default function AdminPage() {
                 {busy ? '확인 중...' : '로그인'}
               </button>
               <p className="text-[11px] text-gray-600">
-                비밀번호 변경: 서버 환경변수 <code className="text-gray-400">ADMIN_PASSWORD</code>
+                비밀번호 변경: 서버 환경변수 <code className="text-gray-500">ADMIN_PASSWORD</code>
               </p>
             </div>
           </div>
@@ -124,16 +124,16 @@ export default function AdminPage() {
                 </Link>
                 <button
                   onClick={logout}
-                  className="text-sm text-gray-400 hover:text-white border border-[#1e1e2e] px-3 py-2 rounded-lg transition"
+                  className="text-sm text-gray-500 hover:text-gray-900 border border-[#e3e6eb] px-3 py-2 rounded-lg transition"
                 >
                   로그아웃
                 </button>
               </div>
             </div>
 
-            <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl overflow-hidden">
+            <div className="bg-white border border-[#e3e6eb] rounded-xl overflow-hidden">
               {posts.length === 0 ? (
-                <div className="p-12 text-center text-gray-500">
+                <div className="p-12 text-center text-gray-600">
                   <p className="text-4xl mb-3">📭</p>
                   <p>등록된 핫딜이 없습니다. 우측 상단 &lsquo;+ 핫딜 등록&rsquo;으로 추가하세요.</p>
                 </div>
@@ -142,34 +142,34 @@ export default function AdminPage() {
                   {posts.map((post, i) => (
                     <li
                       key={post.id}
-                      className="flex items-center gap-3 px-4 py-3 border-b border-[#1e1e2e] last:border-b-0 hover:bg-[#1e1e2e]/50"
+                      className="flex items-center gap-3 px-4 py-3 border-b border-[#e3e6eb] last:border-b-0 hover:bg-[#f1f2f5]/50"
                     >
-                      <span className="text-xs font-mono text-gray-500 w-8 shrink-0">
+                      <span className="text-xs font-mono text-gray-600 w-8 shrink-0">
                         {posts.length - i}
                       </span>
                       <div className="flex-1 min-w-0">
                         <Link
                           href={`/bbs/${post.id}`}
-                          className="text-sm truncate block hover:text-red-400 transition"
+                          className="text-sm truncate block hover:text-red-600 transition"
                         >
                           {post.title}
                         </Link>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-600 mt-0.5">
                           {post.author} ・ {new Date(post.createdAt).toLocaleString()} ・ 조회{' '}
                           {post.views}
                         </p>
                       </div>
                       {post.price != null && post.price > 0 && (
-                        <span className="text-sm font-bold text-red-400 shrink-0">
+                        <span className="text-sm font-bold text-red-600 shrink-0">
                           {post.price.toLocaleString()}원
                         </span>
                       )}
-                      <span className="text-[10px] bg-[#1e1e2e] text-gray-400 px-1.5 py-0.5 rounded shrink-0">
+                      <span className="text-[10px] bg-[#f1f2f5] text-gray-500 px-1.5 py-0.5 rounded shrink-0">
                         {post.source}
                       </span>
                       <button
                         onClick={() => remove(post.id, post.title)}
-                        className="text-xs text-gray-500 hover:text-red-400 border border-[#1e1e2e] hover:border-red-600/50 px-2 py-1 rounded shrink-0 transition"
+                        className="text-xs text-gray-600 hover:text-red-600 border border-[#e3e6eb] hover:border-red-600/50 px-2 py-1 rounded shrink-0 transition"
                       >
                         삭제
                       </button>

@@ -46,7 +46,7 @@ export default async function HomePage({
                 className={`text-xs px-3 py-1.5 rounded-full border transition ${
                   activeCat === c
                     ? 'bg-red-600 border-red-600 text-white font-semibold'
-                    : 'bg-[#12121a] border-[#1e1e2e] text-gray-400 hover:border-gray-500 hover:text-white'
+                    : 'bg-white border-[#e3e6eb] text-gray-500 hover:border-gray-500 hover:text-gray-900'
                 }`}
               >
                 {c}
@@ -57,7 +57,7 @@ export default async function HomePage({
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {posts.length === 0 ? (
-            <div className="col-span-full p-12 text-center text-gray-500">
+            <div className="col-span-full p-12 text-center text-gray-600">
               <p className="text-4xl mb-3">📭</p>
               <p>아직 등록된 핫딜이 없습니다.</p>
               <p className="text-sm mt-1">새 핫딜이 올라오면 가장 먼저 확인하세요!</p>
@@ -67,7 +67,7 @@ export default async function HomePage({
               <Link
                 key={post.id}
                 href={`/bbs/${post.id}`}
-                className="block rounded-xl border border-[#1e1e2e] hover:border-gray-600 overflow-hidden transition bg-[#12121a]"
+                className="block rounded-xl border border-[#e3e6eb] hover:border-gray-400 overflow-hidden transition bg-white"
               >
                 {post.image ? (
                   <div className="relative">
@@ -75,7 +75,7 @@ export default async function HomePage({
                     <img
                       src={post.image}
                       alt=""
-                      className="w-full aspect-square object-cover bg-[#1e1e2e]"
+                      className="w-full aspect-square object-cover bg-[#f1f2f5]"
                     />
                     {post.discountRate != null && post.discountRate > 0 && (
                       <span className="absolute top-0 left-0 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-br-lg shadow-lg">
@@ -84,7 +84,7 @@ export default async function HomePage({
                     )}
                   </div>
                 ) : (
-                  <div className="w-full aspect-square bg-[#1e1e2e] flex items-center justify-center text-3xl">
+                  <div className="w-full aspect-square bg-[#f1f2f5] flex items-center justify-center text-3xl">
                     🛒
                   </div>
                 )}
@@ -94,25 +94,25 @@ export default async function HomePage({
                   </p>
                   <div className="flex items-baseline gap-1.5 flex-wrap">
                     {post.price != null && post.price > 0 && (
-                      <span className="text-sm font-bold text-red-400">
+                      <span className="text-sm font-bold text-red-600">
                         {post.price.toLocaleString()}원
                       </span>
                     )}
                     {post.originalPrice != null && post.price != null && post.originalPrice > post.price && (
-                      <span className="text-[11px] text-gray-500 line-through">
+                      <span className="text-[11px] text-gray-600 line-through">
                         {post.originalPrice.toLocaleString()}
                       </span>
                     )}
                     {Date.now() - new Date(post.createdAt).getTime() < 24 * 3600 * 1000 && (
-                      <span className="text-[10px] bg-red-600/20 text-red-400 px-1.5 py-0.5 rounded font-semibold">
+                      <span className="text-[10px] bg-red-600/20 text-red-600 px-1.5 py-0.5 rounded font-semibold">
                         NEW
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-gray-500">
+                  <div className="flex items-center justify-between text-[10px] text-gray-600">
                     <span>{post.author}</span>
                     <span className="flex items-center gap-1">
-                      <span className="bg-[#1e1e2e] text-gray-400 px-1 py-0.5 rounded">{post.source}</span>
+                      <span className="bg-[#f1f2f5] text-gray-500 px-1 py-0.5 rounded">{post.source}</span>
                       <span>{timeAgo(post.createdAt)}</span>
                     </span>
                   </div>

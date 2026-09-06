@@ -15,17 +15,17 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
     <>
       <Header />
       <main className="max-w-2xl mx-auto px-4 py-6">
-        <Link href="/bbs" className="text-sm text-gray-400 hover:text-white transition">
+        <Link href="/bbs" className="text-sm text-gray-500 hover:text-gray-900 transition">
           ← 목록
         </Link>
 
-        <article className="bg-[#12121a] border border-[#1e1e2e] rounded-xl mt-3 overflow-hidden">
-          <div className="p-5 border-b border-[#1e1e2e]">
+        <article className="bg-white border border-[#e3e6eb] rounded-xl mt-3 overflow-hidden">
+          <div className="p-5 border-b border-[#e3e6eb]">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] bg-[#1e1e2e] text-gray-400 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] bg-[#f1f2f5] text-gray-500 px-1.5 py-0.5 rounded">
                 {post.source}
               </span>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-600">
                 {post.author} ・ {new Date(post.createdAt).toLocaleString('ko-KR')} ・ 조회 {post.views}
               </span>
             </div>
@@ -47,30 +47,30 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
               {post.price != null && post.price > 0 && (
                 <div className="leading-tight">
                   {post.originalPrice != null && post.originalPrice > post.price && (
-                    <p className="text-sm text-gray-500 line-through">
+                    <p className="text-sm text-gray-600 line-through">
                       {post.originalPrice.toLocaleString()}원
                     </p>
                   )}
-                  <span className="text-2xl font-bold text-red-400">
+                  <span className="text-2xl font-bold text-red-600">
                     {post.price.toLocaleString()}원
                   </span>
                 </div>
               )}
               {post.rating != null && <span className="text-yellow-400">★ {post.rating}</span>}
               {post.reviewCount != null && (
-                <span className="text-gray-400">리뷰 {post.reviewCount.toLocaleString()}개</span>
+                <span className="text-gray-500">리뷰 {post.reviewCount.toLocaleString()}개</span>
               )}
               {post.categoryName && (
-                <span className="text-gray-400">
+                <span className="text-gray-500">
                   {post.categoryName}
                   {post.rank ? ` ${post.rank}위` : ''}
                 </span>
               )}
-              {post.arrivalDate && <span className="text-gray-400">📦 {post.arrivalDate} 도착예정</span>}
+              {post.arrivalDate && <span className="text-gray-500">📦 {post.arrivalDate} 도착예정</span>}
             </div>
 
             {post.description && (
-              <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                 {post.description}
               </p>
             )}

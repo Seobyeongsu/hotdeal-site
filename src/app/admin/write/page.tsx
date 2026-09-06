@@ -254,7 +254,7 @@ export default function AdminWritePage() {
     return (
       <>
         <Header />
-        <main className="max-w-2xl mx-auto px-4 py-16 text-center text-gray-500">
+        <main className="max-w-2xl mx-auto px-4 py-16 text-center text-gray-600">
           확인 중...
         </main>
       </>
@@ -267,36 +267,36 @@ export default function AdminWritePage() {
       <main className="max-w-2xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-lg font-bold">핫딜 등록 (관리자)</h1>
-          <Link href="/admin" className="text-sm text-gray-400 hover:text-white transition">
+          <Link href="/admin" className="text-sm text-gray-500 hover:text-gray-900 transition">
             관리자로
           </Link>
         </div>
 
-        <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-4 mb-4">
+        <div className="bg-white border border-[#e3e6eb] rounded-xl p-4 mb-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold flex items-center gap-2">
               <span>🔥</span> 토스 베스트 자동불러오기
-              <span className="text-[10px] font-normal text-gray-500">가격·링크까지 완전 자동</span>
+              <span className="text-[10px] font-normal text-gray-600">가격·링크까지 완전 자동</span>
             </h2>
             <div className="flex gap-2">
               <button
                 onClick={() => loadBest()}
                 disabled={bestLoading}
-                className="bg-[#1e1e2e] hover:bg-[#2a2a3e] disabled:opacity-50 text-xs px-3 py-1.5 rounded-lg transition"
+                className="bg-[#f1f2f5] hover:bg-[#e6e8ee] disabled:opacity-50 text-xs px-3 py-1.5 rounded-lg transition"
               >
                 베스트 20개
               </button>
               <button
                 onClick={loadAllBest}
                 disabled={bestLoading}
-                className="bg-[#1e1e2e] hover:bg-[#2a2a3e] disabled:opacity-50 text-xs px-3 py-1.5 rounded-lg transition"
+                className="bg-[#f1f2f5] hover:bg-[#e6e8ee] disabled:opacity-50 text-xs px-3 py-1.5 rounded-lg transition"
               >
                 전부 불러오기
               </button>
               {bestItems.length > 0 && (
                 <button
                   onClick={selectAll}
-                  className="bg-[#1e1e2e] hover:bg-[#2a2a3e] text-xs px-3 py-1.5 rounded-lg transition"
+                  className="bg-[#f1f2f5] hover:bg-[#e6e8ee] text-xs px-3 py-1.5 rounded-lg transition"
                 >
                   {selected.size === selectableItems.length ? '선택 해제' : '전체 선택'}
                 </button>
@@ -315,11 +315,11 @@ export default function AdminWritePage() {
 
           {bestItems.length > 0 && (
             <div className="mt-3 flex items-center gap-2">
-              <span className="text-[10px] text-gray-500">카테고리</span>
+              <span className="text-[10px] text-gray-600">카테고리</span>
               <select
                 value={catFilter}
                 onChange={(e) => setCatFilter(e.target.value)}
-                className="bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg text-xs px-2 py-1.5 outline-none focus:border-red-600"
+                className="bg-[#f7f8fa] border border-[#e3e6eb] rounded-lg text-xs px-2 py-1.5 outline-none focus:border-red-600"
               >
                 {categories.map((c) => (
                   <option key={c} value={c}>
@@ -327,7 +327,7 @@ export default function AdminWritePage() {
                   </option>
                 ))}
               </select>
-              <span className="text-[10px] text-gray-500">
+              <span className="text-[10px] text-gray-600">
                 {visibleItems.length}개 표시
                 {bestItems.some((i) => i.alreadyRegistered) &&
                   ` · 이미 등록 ${bestItems.filter((i) => i.alreadyRegistered).length}개 제외됨`}
@@ -343,10 +343,10 @@ export default function AdminWritePage() {
                     key={item.tacaItemId}
                     className={`relative block rounded-xl overflow-hidden border transition ${
                       item.alreadyRegistered
-                        ? 'opacity-40 cursor-not-allowed border-[#1e1e2e]'
+                        ? 'opacity-40 cursor-not-allowed border-[#e3e6eb]'
                         : selected.has(item.tacaItemId)
                           ? 'border-red-600 ring-1 ring-red-600/30'
-                          : 'border-[#1e1e2e] hover:border-gray-600 cursor-pointer'
+                          : 'border-[#e3e6eb] hover:border-gray-400 cursor-pointer'
                     }`}
                   >
                     <input
@@ -361,10 +361,10 @@ export default function AdminWritePage() {
                       <img
                         src={item.thumbnailUrl}
                         alt=""
-                        className="w-full aspect-square object-cover bg-[#1e1e2e]"
+                        className="w-full aspect-square object-cover bg-[#f1f2f5]"
                       />
                     ) : (
-                      <div className="w-full aspect-square bg-[#1e1e2e] flex items-center justify-center text-2xl">
+                      <div className="w-full aspect-square bg-[#f1f2f5] flex items-center justify-center text-2xl">
                         🛒
                       </div>
                     )}
@@ -374,15 +374,15 @@ export default function AdminWritePage() {
                       </p>
                       <div className="flex items-center gap-1 flex-wrap">
                         {item.discountRate ? (
-                          <span className="text-[10px] text-red-400 font-bold">{item.discountRate}%</span>
+                          <span className="text-[10px] text-red-600 font-bold">{item.discountRate}%</span>
                         ) : null}
-                        <span className="text-xs font-bold text-red-400">
+                        <span className="text-xs font-bold text-red-600">
                           {item.displayPrice != null ? `${item.displayPrice.toLocaleString()}원` : '-'}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 flex-wrap">
                         {item.alreadyRegistered ? (
-                          <span className="text-[9px] bg-[#1e1e2e] text-gray-400 px-1 py-0.5 rounded">등록됨</span>
+                          <span className="text-[9px] bg-[#f1f2f5] text-gray-500 px-1 py-0.5 rounded">등록됨</span>
                         ) : item.isLowestNow && item.historyDays >= 2 ? (
                           <span className="text-[9px] bg-green-600/20 text-green-400 font-bold px-1 py-0.5 rounded">
                             30일최저
@@ -392,7 +392,7 @@ export default function AdminWritePage() {
                           <span className="text-[9px] text-yellow-400">★{item.reviewScore}</span>
                         )}
                         {item.categoryName && (
-                          <span className="text-[9px] text-gray-500 truncate">{item.categoryName}</span>
+                          <span className="text-[9px] text-gray-600 truncate">{item.categoryName}</span>
                         )}
                       </div>
                     </div>
@@ -403,7 +403,7 @@ export default function AdminWritePage() {
                 <button
                   onClick={() => loadBest(bestCursor)}
                   disabled={bestLoading}
-                  className="w-full py-2 text-xs text-gray-400 hover:text-white hover:bg-[#1e1e2e] mt-2 rounded-lg transition"
+                  className="w-full py-2 text-xs text-gray-500 hover:text-gray-900 hover:bg-[#f1f2f5] mt-2 rounded-lg transition"
                 >
                   + 더 불러오기
                 </button>
@@ -412,15 +412,15 @@ export default function AdminWritePage() {
           )}
 
           {importMsg && (
-            <p className="text-xs mt-2 text-gray-300 bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2">
+            <p className="text-xs mt-2 text-gray-700 bg-[#f7f8fa] border border-[#e3e6eb] rounded-lg px-3 py-2">
               {importMsg}
             </p>
           )}
         </div>
 
-        <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl p-5 space-y-4">
+        <div className="bg-white border border-[#e3e6eb] rounded-xl p-5 space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1.5">
+            <label className="block text-sm text-gray-500 mb-1.5">
               토스 쉐어링크 (복사한 내용 전체를 붙여넣으면 자동 분석)
             </label>
             <div className="flex gap-2">
@@ -430,12 +430,12 @@ export default function AdminWritePage() {
                 onPaste={handlePaste}
                 onKeyDown={(e) => e.key === 'Enter' && url && analyze()}
                 placeholder="https://toss.im/_m/xxxxxxx (문구 전체 붙여넣기 가능)"
-                className="flex-1 bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
+                className="flex-1 bg-[#f7f8fa] border border-[#e3e6eb] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
               />
               <button
                 onClick={() => analyze()}
                 disabled={!url || loading}
-                className="bg-[#1e1e2e] hover:bg-[#2a2a3e] disabled:opacity-50 text-sm px-4 rounded-lg transition shrink-0"
+                className="bg-[#f1f2f5] hover:bg-[#e6e8ee] disabled:opacity-50 text-sm px-4 rounded-lg transition shrink-0"
               >
                 분석
               </button>
@@ -443,22 +443,22 @@ export default function AdminWritePage() {
           </div>
 
           {preview && (
-            <div className="border border-[#1e1e2e] rounded-xl p-4 flex gap-4 bg-[#0a0a0f]">
+            <div className="border border-[#e3e6eb] rounded-xl p-4 flex gap-4 bg-[#f7f8fa]">
               {preview.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={preview.image}
                   alt=""
-                  className="w-24 h-24 rounded-lg object-cover bg-[#1e1e2e] shrink-0"
+                  className="w-24 h-24 rounded-lg object-cover bg-[#f1f2f5] shrink-0"
                 />
               ) : (
-                <span className="w-24 h-24 rounded-lg bg-[#1e1e2e] shrink-0 flex items-center justify-center text-2xl">
+                <span className="w-24 h-24 rounded-lg bg-[#f1f2f5] shrink-0 flex items-center justify-center text-2xl">
                   🛒
                 </span>
               )}
               <div className="min-w-0">
                 <p className="font-semibold text-sm leading-snug">{preview.name}</p>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-gray-400">
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-gray-500">
                   {preview.rating != null && (
                     <span className="text-yellow-400">★ {preview.rating}</span>
                   )}
@@ -490,19 +490,19 @@ export default function AdminWritePage() {
 
           {manual && (
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">제목 (직접 입력)</label>
+              <label className="block text-sm text-gray-500 mb-1.5">제목 (직접 입력)</label>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="예) 쿠팡) 써모스 텀블러 350ml"
-                className="w-full bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
+                className="w-full bg-[#f7f8fa] border border-[#e3e6eb] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
               />
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">가격 (선택)</label>
+              <label className="block text-sm text-gray-500 mb-1.5">가격 (선택)</label>
               <input
                 value={price}
                 onChange={(e) => {
@@ -511,21 +511,21 @@ export default function AdminWritePage() {
                 }}
                 inputMode="numeric"
                 placeholder="12,900"
-                className="w-full bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
+                className="w-full bg-[#f7f8fa] border border-[#e3e6eb] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1.5">작성자</label>
+              <label className="block text-sm text-gray-500 mb-1.5">작성자</label>
               <input
                 value={author}
                 onChange={(e) => setAuthor(e.target.value)}
-                className="w-full bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
+                className="w-full bg-[#f7f8fa] border border-[#e3e6eb] rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-red-600"
               />
             </div>
           </div>
 
           {error && (
-            <p className="text-sm text-red-400 bg-red-600/10 border border-red-600/30 rounded-lg px-3 py-2">
+            <p className="text-sm text-red-600 bg-red-600/10 border border-red-600/30 rounded-lg px-3 py-2">
               {error}
             </p>
           )}
