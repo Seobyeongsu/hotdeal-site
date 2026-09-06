@@ -149,6 +149,46 @@ export async function createShareLink(tacaItemId: number): Promise<IssuedLink> {
   return link;
 }
 
+export interface ProductDetail {
+  tacaItemId: number;
+  tacaId: number;
+  displayName: string;
+  thumbnailUrl: string;
+  displayPrice: number | null;
+  originalPrice: number | null;
+  discountRate: number | null;
+  isSoldOut: boolean;
+  reviewScore: number | null;
+  reviewCount: number | null;
+  categoryIds: number[];
+}
+
+export async function fetchProductDetail(tacaId: number): Promise<ProductDetail | null> {
+  const data = await tossGet<{ items: ProductDetail[] }>(`/openapi/products/detail?tacaIds=${tacaId}`);
+  return data.items?.[0] ?? null;
+}
+
+export interface DealPriceInfo {
+  price: number | null;
+  originalPrice: number | null;
+  discountRate: number | null;
+  tacaItemId: number | null;
+}
+
+const NO_PRICE: DealPriceInfo = { price: null, originalPrice: null, discountRate: null, tacaItemId: null };
+
+export async function enrichDealPrice(canonicalUrl: string | null): Promise<DealPriceInfo> {
+  const m = canonicalUrl?.match(/\/t\/(\d+)/);
+  if (!m || !tossKeysConfigured()) return NO_PRICE;
+  try {
+    const d = await fetchProductDetail(Number(m[1]));
+    if (!d) return NO_PRICE;
+    return { price: d.displayPrice, originalPrice: d.originalPrice, discountRate: d.discountRate, tacaItemId: d.tacaItemId };
+  } catch {
+    return NO_PRICE;
+  }
+}
+
 export async function tossHealth(): Promise<unknown> {
   return tossGet<unknown>('/openapi/health');
 }

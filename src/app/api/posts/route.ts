@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listPosts, addPost } from '@/lib/store';
 import { parseTossLink, isTossLink } from '@/lib/toss';
+import { enrichDealPrice } from '@/lib/toss-api';
 import { isAdminRequest } from '@/lib/auth';
 
 export async function GET() {
@@ -24,12 +25,14 @@ export async function POST(request: NextRequest) {
 
     if (isTossLink(url)) {
       const deal = await parseTossLink(url);
+      const priceInfo = await enrichDealPrice(deal.canonicalUrl);
       const post = await addPost({
         title: deal.title,
         description: deal.description,
         image: deal.image,
         url: deal.url,
-        price,
+        price: price ?? priceInfo.price,
+        tacaItemId: priceInfo.tacaItemId,
         rating: deal.rating,
         reviewCount: deal.reviewCount,
         categoryName: deal.categoryName,

@@ -17,6 +17,9 @@ interface Preview {
   arrivalDate: string | null;
   merchant: string | null;
   source: string;
+  price?: number | null;
+  originalPrice?: number | null;
+  discountRate?: number | null;
 }
 
 interface BestItem {
@@ -45,6 +48,7 @@ export default function AdminWritePage() {
   const [bestLoading, setBestLoading] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [catFilter, setCatFilter] = useState('전체');
+  const [dealFilter, setDealFilter] = useState('전체');
   const [importMsg, setImportMsg] = useState('');
   const [url, setUrl] = useState('');
   const [price, setPrice] = useState('');
@@ -107,12 +111,19 @@ export default function AdminWritePage() {
   };
 
   const selectableItems = bestItems.filter((i) => !i.alreadyRegistered);
-  const visibleItems = catFilter === '전체' ? bestItems : bestItems.filter((i) => i.categoryName === catFilter);
+  const visibleItems = bestItems.filter((i) => {
+    if (catFilter !== '전체' && i.categoryName !== catFilter) return false;
+    if (dealFilter === '할인 30%+' && !(i.discountRate != null && i.discountRate >= 30)) return false;
+    if (dealFilter === '할인 50%+' && !(i.discountRate != null && i.discountRate >= 50)) return false;
+    if (dealFilter === '30일 최저가만' && !(i.isLowestNow && i.historyDays >= 2)) return false;
+    return true;
+  });
+  const visibleSelectable = visibleItems.filter((i) => !i.alreadyRegistered);
   const categories = ['전체', ...Array.from(new Set(bestItems.map((i) => i.categoryName).filter(Boolean) as string[]))];
 
   const selectAll = () => {
     setSelected((prev) =>
-      prev.size === selectableItems.length ? new Set() : new Set(selectableItems.map((i) => i.tacaItemId))
+      prev.size === visibleSelectable.length ? new Set() : new Set(visibleSelectable.map((i) => i.tacaItemId))
     );
   };
 
@@ -200,6 +211,9 @@ export default function AdminWritePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '분석 실패');
       setPreview(data);
+      if (data.price != null) {
+        setPrice(Number(data.price).toLocaleString('ko-KR'));
+      }
       setManual(false);
     } catch (e: any) {
       setError(e.message);
@@ -322,61 +336,74 @@ export default function AdminWritePage() {
           )}
 
           {bestItems.length > 0 && (
-            <div className="mt-3 max-h-96 overflow-y-auto border border-[#1e1e2e] rounded-lg divide-y divide-[#1e1e2e]">
-              {visibleItems.map((item) => (
-                <label
-                  key={item.tacaItemId}
-                  className={`flex items-center gap-3 px-3 py-2 ${
-                    item.alreadyRegistered ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[#1e1e2e]/50 cursor-pointer'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(item.tacaItemId)}
-                    onChange={() => toggleItem(item.tacaItemId)}
-                    disabled={item.alreadyRegistered}
-                    className="accent-red-600 shrink-0"
-                  />
-                  {item.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={item.thumbnailUrl} alt="" className="w-9 h-9 rounded object-cover bg-[#1e1e2e] shrink-0" />
-                  ) : (
-                    <span className="w-9 h-9 rounded bg-[#1e1e2e] shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs truncate">{item.displayName}</p>
-                    <p className="text-[10px] text-gray-500">
-                      #{item.rank}
-                      {item.categoryName && <span className="text-gray-400"> · {item.categoryName}</span>}
-                      {item.reviewScore != null && <> · ★{item.reviewScore}</>}
-                      {item.reviewCount != null && <> · 리뷰 {item.reviewCount.toLocaleString()}</>}
-                      {item.isSoldOut && <span className="text-gray-600"> · 품절</span>}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    {item.alreadyRegistered ? (
-                      <span className="text-[10px] bg-[#1e1e2e] text-gray-400 px-1.5 py-0.5 rounded">등록됨</span>
-                    ) : item.isLowestNow && item.historyDays >= 2 ? (
-                      <span className="text-[10px] bg-green-600/20 text-green-400 font-bold px-1.5 py-0.5 rounded">
-                        30일 최저가
-                      </span>
-                    ) : item.lowest30d != null && item.historyDays >= 2 ? (
-                      <span className="text-[10px] text-gray-500">30일최저 {item.lowest30d.toLocaleString()}원</span>
-                    ) : null}
-                    {item.discountRate ? (
-                      <div className="text-[10px] text-red-400 font-bold">{item.discountRate}%</div>
-                    ) : null}
-                    <p className="text-xs font-bold text-red-400">
-                      {item.displayPrice != null ? `${item.displayPrice.toLocaleString()}원` : '-'}
-                    </p>
-                  </div>
-                </label>
-              ))}
+            <div className="mt-3 max-h-[32rem] overflow-y-auto">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {visibleItems.map((item) => (
+                  <label
+                    key={item.tacaItemId}
+                    className={`relative block rounded-xl overflow-hidden border transition ${
+                      item.alreadyRegistered
+                        ? 'opacity-40 cursor-not-allowed border-[#1e1e2e]'
+                        : selected.has(item.tacaItemId)
+                          ? 'border-red-600 ring-1 ring-red-600/30'
+                          : 'border-[#1e1e2e] hover:border-gray-600 cursor-pointer'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.has(item.tacaItemId)}
+                      onChange={() => toggleItem(item.tacaItemId)}
+                      disabled={item.alreadyRegistered}
+                      className="absolute top-1.5 left-1.5 z-10 accent-red-600 w-4 h-4"
+                    />
+                    {item.thumbnailUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.thumbnailUrl}
+                        alt=""
+                        className="w-full aspect-square object-cover bg-[#1e1e2e]"
+                      />
+                    ) : (
+                      <div className="w-full aspect-square bg-[#1e1e2e] flex items-center justify-center text-2xl">
+                        🛒
+                      </div>
+                    )}
+                    <div className="p-2 space-y-1">
+                      <p className="text-[11px] leading-tight line-clamp-2 min-h-[2.5em]">
+                        {item.displayName}
+                      </p>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {item.discountRate ? (
+                          <span className="text-[10px] text-red-400 font-bold">{item.discountRate}%</span>
+                        ) : null}
+                        <span className="text-xs font-bold text-red-400">
+                          {item.displayPrice != null ? `${item.displayPrice.toLocaleString()}원` : '-'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {item.alreadyRegistered ? (
+                          <span className="text-[9px] bg-[#1e1e2e] text-gray-400 px-1 py-0.5 rounded">등록됨</span>
+                        ) : item.isLowestNow && item.historyDays >= 2 ? (
+                          <span className="text-[9px] bg-green-600/20 text-green-400 font-bold px-1 py-0.5 rounded">
+                            30일최저
+                          </span>
+                        ) : null}
+                        {item.reviewScore != null && (
+                          <span className="text-[9px] text-yellow-400">★{item.reviewScore}</span>
+                        )}
+                        {item.categoryName && (
+                          <span className="text-[9px] text-gray-500 truncate">{item.categoryName}</span>
+                        )}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
               {bestCursor && (
                 <button
                   onClick={() => loadBest(bestCursor)}
                   disabled={bestLoading}
-                  className="w-full py-2 text-xs text-gray-400 hover:text-white hover:bg-[#1e1e2e] transition"
+                  className="w-full py-2 text-xs text-gray-400 hover:text-white hover:bg-[#1e1e2e] mt-2 rounded-lg transition"
                 >
                   + 더 불러오기
                 </button>
@@ -447,9 +474,16 @@ export default function AdminWritePage() {
                   {preview.arrivalDate && <span>📦 {preview.arrivalDate} 도착예정</span>}
                   {preview.merchant && <span>{preview.merchant}</span>}
                 </div>
-                <p className="text-[11px] text-gray-600 mt-2">
-                  ※ 토스 웹에는 가격이 노출되지 않습니다. 아래에 직접 입력하세요.
-                </p>
+                {preview.price != null ? (
+                  <p className="text-xs mt-2 text-green-400 font-semibold">
+                    ✅ 가격 자동 인식: {Number(preview.price).toLocaleString()}원
+                    {preview.discountRate ? ` (할인 ${preview.discountRate}%)` : ''}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-gray-600 mt-2">
+                    ※ 가격을 찾지 못했습니다. 아래에 직접 입력하세요.
+                  </p>
+                )}
               </div>
             </div>
           )}

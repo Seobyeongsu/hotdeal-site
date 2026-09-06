@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseTossLink, isTossLink } from '@/lib/toss';
+import { enrichDealPrice } from '@/lib/toss-api';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +18,8 @@ export async function POST(request: NextRequest) {
     }
 
     const deal = await parseTossLink(url);
-    return NextResponse.json(deal);
+    const priceInfo = await enrichDealPrice(deal.canonicalUrl);
+    return NextResponse.json({ ...deal, ...priceInfo });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || '분석 실패' }, { status: 500 });
   }
