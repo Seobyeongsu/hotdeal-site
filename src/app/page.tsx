@@ -55,62 +55,58 @@ export default async function HomePage({
           </div>
         )}
 
-        <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl overflow-hidden">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {posts.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
+            <div className="col-span-full p-12 text-center text-gray-500">
               <p className="text-4xl mb-3">📭</p>
               <p>아직 등록된 핫딜이 없습니다.</p>
               <p className="text-sm mt-1">새 핫딜이 올라오면 가장 먼저 확인하세요!</p>
             </div>
           ) : (
-            <ul>
-              {posts.map((post, i) => (
-                <li key={post.id}>
-                  <Link
-                    href={`/bbs/${post.id}`}
-                    className="flex items-center gap-3 px-4 py-3.5 hover:bg-[#1e1e2e] transition border-b border-[#1e1e2e] last:border-b-0"
-                  >
-                    <span className="text-xs font-mono text-gray-500 w-8 shrink-0">
-                      {posts.length - i}
-                    </span>
-                    {post.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={post.image}
-                        alt=""
-                        className="w-10 h-10 rounded-lg object-cover bg-[#1e1e2e] shrink-0"
-                      />
-                    ) : (
-                      <span className="w-10 h-10 rounded-lg bg-[#1e1e2e] shrink-0 flex items-center justify-center text-gray-600">
-                        🛒
+            posts.map((post, i) => (
+              <Link
+                key={post.id}
+                href={`/bbs/${post.id}`}
+                className="block rounded-xl border border-[#1e1e2e] hover:border-gray-600 overflow-hidden transition bg-[#12121a]"
+              >
+                {post.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={post.image}
+                    alt=""
+                    className="w-full aspect-square object-cover bg-[#1e1e2e]"
+                  />
+                ) : (
+                  <div className="w-full aspect-square bg-[#1e1e2e] flex items-center justify-center text-3xl">
+                    🛒
+                  </div>
+                )}
+                <div className="p-3 space-y-1.5">
+                  <p className="text-sm font-medium leading-snug line-clamp-2 min-h-[2.5em]">
+                    {post.title}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    {post.price != null && post.price > 0 && (
+                      <span className="text-sm font-bold text-red-400">
+                        {post.price.toLocaleString()}원
                       </span>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">{post.title}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {post.author} ・ {timeAgo(post.createdAt)}
-                        {post.views > 0 && <> ・ 조회 {post.views}</>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {post.price != null && post.price > 0 && (
-                        <span className="text-sm font-bold text-red-400">
-                          {post.price.toLocaleString()}원
-                        </span>
-                      )}
-                      <span className="text-[10px] bg-[#1e1e2e] text-gray-400 px-1.5 py-0.5 rounded">
-                        {post.source}
+                    {Date.now() - new Date(post.createdAt).getTime() < 24 * 3600 * 1000 && (
+                      <span className="text-[10px] bg-red-600/20 text-red-400 px-1.5 py-0.5 rounded font-semibold">
+                        NEW
                       </span>
-                      {Date.now() - new Date(post.createdAt).getTime() < 24 * 3600 * 1000 && (
-                        <span className="text-[10px] bg-red-600/20 text-red-400 px-1.5 py-0.5 rounded font-semibold">
-                          NEW
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-gray-500">
+                    <span>{post.author}</span>
+                    <span className="flex items-center gap-1">
+                      <span className="bg-[#1e1e2e] text-gray-400 px-1 py-0.5 rounded">{post.source}</span>
+                      <span>{timeAgo(post.createdAt)}</span>
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))
           )}
         </div>
       </main>
