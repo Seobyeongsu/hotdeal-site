@@ -31,9 +31,7 @@ export default async function HomePage({
       <Header />
       <main className="max-w-4xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <span className="text-red-500">🔥</span> 핫딜게시판
-          </h1>
+          <h1 className="text-lg font-bold flex items-center gap-2">핫딜게시판</h1>
           <span className="text-xs text-gray-600">총 {posts.length}개</span>
         </div>
 

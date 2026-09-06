@@ -4,6 +4,21 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "더파인드핫딜 | The Find HotDeal",
   description: "숨은 착한 핫딜을 찾아드립니다 - 토스·쿠팡 상품 최저가 모니터링",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
+  openGraph: {
+    title: "더파인드핫딜 | The Find HotDeal",
+    description: "숨은 착한 핫딜을 찾아드립니다 - 토스·쿠팡 상품 최저가 모니터링",
+    images: ["/logo.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "더파인드핫딜 | The Find HotDeal",
+    description: "숨은 착한 핫딜을 찾아드립니다 - 토스·쿠팡 상품 최저가 모니터링",
+    images: ["/logo.png"],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
