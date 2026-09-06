@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function Footer() {
   return (
     <footer className="bg-white border-t border-[#e3e6eb] mt-auto">
@@ -10,8 +12,7 @@ export default function Footer() {
           </div>
 
           <nav className="flex gap-6 text-sm text-gray-500">
-            <a href="/" className="hover:text-gray-900 transition">핫딜게시판</a>
-            <a href="/admin" className="hover:text-gray-900 transition">관리자</a>
+            <Link href="/" className="hover:text-gray-900 transition">핫딜게시판</Link>
           </nav>
 
           <p className="text-xs text-gray-600">

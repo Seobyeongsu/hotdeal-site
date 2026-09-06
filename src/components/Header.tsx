@@ -15,14 +15,6 @@ export default function Header() {
             <span className="text-[10px] bg-[#f1f2f5] text-gray-500 px-2 py-1 rounded">The Find HotDeal</span>
           </Link>
 
-          <div className="flex items-center gap-4">
-            <Link
-              href="/admin"
-              className="text-xs text-gray-600 hover:text-gray-900 border border-[#e3e6eb] px-3 py-1.5 rounded-lg transition"
-            >
-              관리자
-            </Link>
-          </div>
         </div>
       </div>
     </header>

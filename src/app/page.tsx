@@ -16,6 +16,10 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hr / 24)}일`;
 }
 
+function isNew(iso: string): boolean {
+  return Date.now() - new Date(iso).getTime() < 24 * 3600 * 1000;
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -27,13 +31,64 @@ export default async function HomePage({
   const cats = Array.from(new Set(allPosts.map((p) => p.categoryName).filter(Boolean) as string[]));
   const activeCat = cat && cats.includes(cat) ? cat : '전체';
   const posts = activeCat === '전체' ? allPosts : allPosts.filter((p) => p.categoryName === activeCat);
+  const featuredPosts = [...allPosts]
+    .filter((post) => post.price != null && post.price > 0)
+    .sort((a, b) => {
+      const discountDiff = (b.discountRate ?? 0) - (a.discountRate ?? 0);
+      return discountDiff || (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER);
+    })
+    .slice(0, 3);
 
   return (
     <>
       <Header />
       <main className="max-w-4xl mx-auto px-4 py-6">
+        {activeCat === '전체' && featuredPosts.length > 0 && (
+          <section className="mb-7">
+            <div className="flex items-end justify-between gap-4 mb-3">
+              <div>
+                <p className="text-xs font-semibold text-red-600 mb-1">TODAY&apos;S PICK</p>
+                <h1 className="text-xl font-bold tracking-tight">오늘의 핫딜</h1>
+              </div>
+              <p className="text-xs text-gray-500 text-right">할인율과 판매가를 기준으로 골랐어요</p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {featuredPosts.map((post, index) => (
+                <Link
+                  key={post.id}
+                  href={`/bbs/${post.id}`}
+                  className="group flex gap-3 rounded-xl border border-[#e3e6eb] bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-red-300 hover:shadow-md sm:block"
+                >
+                  <div className="relative w-20 shrink-0 overflow-hidden rounded-lg bg-[#f1f2f5] sm:w-full">
+                    {post.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={post.image} alt="" className="h-20 w-full object-cover sm:h-auto sm:aspect-[4/3]" />
+                    ) : (
+                      <div className="flex h-20 items-center justify-center text-2xl sm:h-auto sm:aspect-[4/3]">🛒</div>
+                    )}
+                    <span className="absolute left-0 top-0 bg-red-600 px-1.5 py-1 text-[10px] font-bold text-white rounded-br-lg">
+                      PICK {index + 1}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1 pt-0.5 sm:pt-2">
+                    <p className="line-clamp-2 text-sm font-semibold leading-snug group-hover:text-red-700">{post.title}</p>
+                    <div className="mt-2 flex items-baseline gap-1.5">
+                      {post.discountRate != null && post.discountRate > 0 && (
+                        <span className="text-xs font-bold text-red-600">{post.discountRate}%</span>
+                      )}
+                      <span className="text-sm font-bold text-gray-900">{post.price.toLocaleString()}원</span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-gray-500">{post.source}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-bold flex items-center gap-2">핫딜게시판</h1>
+          <h2 className="text-lg font-bold flex items-center gap-2">전체 핫딜</h2>
           <span className="text-xs text-gray-600">총 {posts.length}개</span>
         </div>
 
@@ -63,7 +118,7 @@ export default async function HomePage({
               <p className="text-sm mt-1">새 핫딜이 올라오면 가장 먼저 확인하세요!</p>
             </div>
           ) : (
-            posts.map((post, i) => {
+            posts.map((post) => {
               const badge = badges.get(post.id) ?? null;
               return (
               <Link
@@ -115,7 +170,7 @@ export default async function HomePage({
                         30일 최저
                       </span>
                     )}
-                    {Date.now() - new Date(post.createdAt).getTime() < 24 * 3600 * 1000 && (
+                    {isNew(post.createdAt) && (
                       <span className="text-[10px] bg-red-600/20 text-red-600 px-1.5 py-0.5 rounded font-semibold">
                         NEW
                       </span>

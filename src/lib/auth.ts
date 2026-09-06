@@ -1,13 +1,16 @@
 export const ADMIN_COOKIE = 'hotdeal_admin';
 
-export function adminPassword(): string {
-  return process.env.ADMIN_PASSWORD || 'hotdeal1234';
+export function adminPassword(): string | null {
+  return process.env.ADMIN_PASSWORD?.trim() || null;
 }
 
-export async function adminToken(): Promise<string> {
+export async function adminToken(): Promise<string | null> {
+  const password = adminPassword();
+  if (!password) return null;
+
   const key = await crypto.subtle.importKey(
     'raw',
-    new TextEncoder().encode(adminPassword()),
+    new TextEncoder().encode(password),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign'],
@@ -24,7 +27,8 @@ export async function adminToken(): Promise<string> {
 
 export async function verifyToken(token: string | undefined | null): Promise<boolean> {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return false;
-  return token === (await adminToken());
+  const expectedToken = await adminToken();
+  return expectedToken !== null && token === expectedToken;
 }
 
 export async function isAdminRequest(req: Request): Promise<boolean> {
