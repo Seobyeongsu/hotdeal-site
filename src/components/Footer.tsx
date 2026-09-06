@@ -10,10 +10,8 @@ export default function Footer() {
           </div>
 
           <nav className="flex gap-6 text-sm text-gray-400">
-            <a href="#" className="hover:text-white transition">홈</a>
-            <a href="#" className="hover:text-white transition">카테고리</a>
-            <a href="#" className="hover:text-white transition">랭킹</a>
-            <a href="#" className="hover:text-white transition">핫딜</a>
+            <a href="/" className="hover:text-white transition">핫딜게시판</a>
+            <a href="/admin" className="hover:text-white transition">관리자</a>
           </nav>
 
           <p className="text-xs text-gray-500">
