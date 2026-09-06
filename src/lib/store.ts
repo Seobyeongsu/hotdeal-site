@@ -81,7 +81,7 @@ const memKV: KVLike = {
 let cachedBackend: KVLike | null = null;
 function backend(): KVLike {
   if (cachedBackend) return cachedBackend;
-  cachedBackend = getKV() ?? fileKV() ?? memKV;
+  cachedBackend = fileKV() ?? getKV() ?? memKV;
   return cachedBackend;
 }
 
