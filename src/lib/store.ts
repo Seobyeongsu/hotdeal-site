@@ -8,6 +8,8 @@ export interface BoardPost {
   image: string;
   url: string;
   price: number | null;
+  originalPrice: number | null;
+  discountRate: number | null;
   rating: number | null;
   reviewCount: number | null;
   categoryName: string | null;
@@ -120,5 +122,5 @@ export async function kvGetCloudflare(key: string): Promise<string | null> {
 export async function kvSetCloudflare(key: string, value: string): Promise<void> {
   const kv = (process.env as any)?.DEALS_KV;
   if (kv?.put) { await kv.put(key, value); return; }
-  return kvSet(key);
+  return kvSet(key, value);
 }

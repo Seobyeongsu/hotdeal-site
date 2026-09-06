@@ -46,6 +46,12 @@ export async function POST(request: NextRequest) {
         image: item.thumbnailUrl || '',
         url: link.shortUrl,
         price: item.displayPrice != null ? Number(item.displayPrice) : null,
+        originalPrice:
+          item.originalPrice != null && item.displayPrice != null && Number(item.originalPrice) > Number(item.displayPrice)
+            ? Number(item.originalPrice)
+            : null,
+        discountRate:
+          item.discountRate != null && Number(item.discountRate) > 0 ? Number(item.discountRate) : null,
         rating: item.reviewScore != null ? Number(item.reviewScore) : null,
         reviewCount: item.reviewCount != null ? Number(item.reviewCount) : null,
         categoryName: item.categoryName || (item.discountRate ? `할인 ${item.discountRate}%` : null),

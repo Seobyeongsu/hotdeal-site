@@ -39,10 +39,22 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
 
           <div className="p-5 space-y-4">
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-              {post.price != null && post.price > 0 && (
-                <span className="text-2xl font-bold text-red-400">
-                  {post.price.toLocaleString()}원
+              {post.discountRate != null && post.discountRate > 0 && (
+                <span className="bg-red-600 text-white text-sm font-bold px-2.5 py-1 rounded-lg self-center">
+                  {post.discountRate}% <span className="text-[10px] font-normal opacity-90">OFF</span>
                 </span>
+              )}
+              {post.price != null && post.price > 0 && (
+                <div className="leading-tight">
+                  {post.originalPrice != null && post.originalPrice > post.price && (
+                    <p className="text-sm text-gray-500 line-through">
+                      {post.originalPrice.toLocaleString()}원
+                    </p>
+                  )}
+                  <span className="text-2xl font-bold text-red-400">
+                    {post.price.toLocaleString()}원
+                  </span>
+                </div>
               )}
               {post.rating != null && <span className="text-yellow-400">★ {post.rating}</span>}
               {post.reviewCount != null && (
@@ -55,7 +67,6 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
                 </span>
               )}
               {post.arrivalDate && <span className="text-gray-400">📦 {post.arrivalDate} 도착예정</span>}
-              {post.merchant && <span className="text-gray-400">{post.merchant}</span>}
             </div>
 
             {post.description && (

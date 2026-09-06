@@ -74,8 +74,8 @@ export default function AdminWritePage() {
     setBestLoading(true);
     setImportMsg('');
     try {
-      const res = await fetch(`/api/toss-api/best?size=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
-      const data = await res.json();
+      const res: Response = await fetch(`/api/toss-api/best?size=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+      const data: { items?: BestItem[]; nextCursor?: string | null; error?: string } = await res.json();
       if (!res.ok) throw new Error(data.error || '조회 실패');
       setBestItems((prev) => (cursor ? [...prev, ...(data.items || [])] : data.items || []));
       setBestCursor(data.nextCursor || null);
@@ -93,8 +93,8 @@ export default function AdminWritePage() {
       const all: BestItem[] = [];
       let cursor: string | null = null;
       for (let page = 0; page < 10; page++) {
-        const res = await fetch(`/api/toss-api/best?size=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
-        const data = await res.json();
+        const res: Response = await fetch(`/api/toss-api/best?size=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+        const data: { items?: BestItem[]; nextCursor?: string | null; hasNext?: boolean; error?: string } = await res.json();
         if (!res.ok) throw new Error(data.error || '조회 실패');
         all.push(...(data.items || []));
         if (!data.hasNext || !data.nextCursor) break;

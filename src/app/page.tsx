@@ -70,12 +70,19 @@ export default async function HomePage({
                 className="block rounded-xl border border-[#1e1e2e] hover:border-gray-600 overflow-hidden transition bg-[#12121a]"
               >
                 {post.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={post.image}
-                    alt=""
-                    className="w-full aspect-square object-cover bg-[#1e1e2e]"
-                  />
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={post.image}
+                      alt=""
+                      className="w-full aspect-square object-cover bg-[#1e1e2e]"
+                    />
+                    {post.discountRate != null && post.discountRate > 0 && (
+                      <span className="absolute top-0 left-0 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-br-lg shadow-lg">
+                        {post.discountRate}%
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <div className="w-full aspect-square bg-[#1e1e2e] flex items-center justify-center text-3xl">
                     🛒
@@ -85,10 +92,15 @@ export default async function HomePage({
                   <p className="text-sm font-medium leading-snug line-clamp-2 min-h-[2.5em]">
                     {post.title}
                   </p>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
                     {post.price != null && post.price > 0 && (
                       <span className="text-sm font-bold text-red-400">
                         {post.price.toLocaleString()}원
+                      </span>
+                    )}
+                    {post.originalPrice != null && post.price != null && post.originalPrice > post.price && (
+                      <span className="text-[11px] text-gray-500 line-through">
+                        {post.originalPrice.toLocaleString()}
                       </span>
                     )}
                     {Date.now() - new Date(post.createdAt).getTime() < 24 * 3600 * 1000 && (
