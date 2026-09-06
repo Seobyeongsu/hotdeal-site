@@ -95,14 +95,28 @@ async function getTossToken(env) {
   return data.access_token;
 }
 
-async function fetchBestSelling(token, size = 30) {
-  const res = await fetch(`${TOSS_API_BASE}/openapi/products/best-selling?size=${size}`, {
+async function fetchBestPage(token, size, cursor) {
+  const q = new URLSearchParams({ size: String(size) });
+  if (cursor) q.set('cursor', cursor);
+  const res = await fetch(`${TOSS_API_BASE}/openapi/products/best-selling?${q.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (res.status === 403) throw new Error('ACCESS_DENIED: IP가 화이트리스트에 없습니다');
   const json = await res.json();
   if (json.resultType !== 'SUCCESS') throw new Error(json.error?.reason || '조회 실패');
-  return json.success?.items || [];
+  return json.success || {};
+}
+
+async function fetchAllBest(token, pageSize = 100, maxPages = 5) {
+  const all = [];
+  let cursor = null;
+  for (let page = 0; page < maxPages; page++) {
+    const s = await fetchBestPage(token, pageSize, cursor);
+    all.push(...(s.items || []));
+    if (!s.hasNext || !s.nextCursor) break;
+    cursor = s.nextCursor;
+  }
+  return all;
 }
 
 async function createShareLink(token, tacaItemId, publisherId) {
@@ -160,10 +174,10 @@ async function main() {
 
   let items;
   try {
-    items = await fetchBestSelling(tossToken, 30);
-    log(`✅ 베스트 상품 ${items.length}개 조회`);
+    items = await fetchAllBest(tossToken);
+    log(`✅ 베스트 상품 ${items.length}개 조회 (전체 페이지)`);
   } catch (e) {
-    if (e.message.includes('ACCESS_DENIED')) {
+    if (e.message.includes('ACCESS_DENIED') || e.message.includes('접근 권한')) {
       const ipRes = await fetch('https://api.ipify.org?format=json');
       const { ip } = await ipRes.json();
       const msg = `🚫 <b>IP 변경 감지!</b>\n현재 IP: <code>${ip}</code>\n토스 어드민에서 새 IP를 등록해주세요.`;
