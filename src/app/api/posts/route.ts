@@ -3,8 +3,12 @@ import { listPosts, addPost } from '@/lib/store';
 import { parseTossLink, isTossLink } from '@/lib/toss';
 import { enrichDealPrice } from '@/lib/toss-api';
 import { isAdminRequest } from '@/lib/auth';
+import { isGuestRequest } from '@/lib/gate';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!(await isGuestRequest(request))) {
+    return NextResponse.json({ error: '접속 비밀번호가 필요합니다.' }, { status: 401 });
+  }
   const posts = await listPosts();
   return NextResponse.json(posts);
 }

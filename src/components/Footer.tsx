@@ -19,6 +19,9 @@ export default function Footer() {
             © 2026 더파인드핫딜. All rights reserved.
           </p>
         </div>
+        <p className="text-[11px] text-gray-500 text-center mt-4">
+          일부 게시물은 토스쇼핑 쉐어링크 활동의 일환으로, 링크를 통한 구매가 발생하면 일정 수수료를 지급받습니다.
+        </p>
       </div>
     </footer>
   );

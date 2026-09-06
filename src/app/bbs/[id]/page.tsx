@@ -94,8 +94,8 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
 
             {post.source === '토스' && (
               <p className="text-[11px] text-gray-600 text-center">
-                공유된 링크로 구매 시, 이 포스팅은 토스쇼핑 쉐어링크 활동의 일환으로 일정액의 수수료를
-                제공받습니다.
+                이 콘텐츠는 토스쇼핑 쉐어링크 활동의 일환으로, 링크를 통한 구매가 발생하면 일정 수수료를
+                지급받습니다.
               </p>
             )}
           </div>

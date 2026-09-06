@@ -7,7 +7,7 @@ export default function ProductActions({ url, source, title }: { url: string; so
 
   const disclosure =
     source === '토스'
-      ? '이 링크로 구매 시, 이 포스팅은 토스쇼핑 쉐어링크 활동의 일환으로 일정액의 수수료를 제공받습니다.'
+      ? '이 콘텐츠는 토스쇼핑 쉐어링크 활동의 일환으로, 링크를 통한 구매가 발생하면 일정 수수료를 지급받습니다.'
       : '';
   const shareText = [title, url, disclosure].filter(Boolean).join('\n\n');
 
