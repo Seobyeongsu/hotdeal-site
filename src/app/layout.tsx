@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "핫딜 리딩방 | 핫딜 모니터",
-  description: "전 상품 핫딜 모니터링 서비스",
+  title: "더파인드핫딜 | The Find HotDeal",
+  description: "숨은 착한 핫딜을 찾아드립니다 - 토스·쿠팡 상품 최저가 모니터링",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
