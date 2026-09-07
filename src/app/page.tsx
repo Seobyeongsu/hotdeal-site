@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { listPosts } from '@/lib/store';
-import { getPriceBadges } from '@/lib/toss-api';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -62,7 +61,6 @@ export default async function HomePage({
   const activeSort = sort && /^[a-z]+:(asc|desc)$/.test(sort) ? sort : '';
   const activeQ = (q || '').trim();
   const allPosts = await listPosts();
-  const badges = await getPriceBadges(allPosts);
   const cats = Array.from(new Set(allPosts.map((p) => p.categoryName).filter(Boolean) as string[]));
   const isTodayTab = cat === '오늘의 특가';
   const activeCat = isTodayTab || cats.includes((cat as string) || '') ? (cat as string) : '전체';
@@ -248,9 +246,7 @@ export default async function HomePage({
               <p className="text-sm mt-1">새 핫딜이 올라오면 가장 먼저 확인하세요!</p>
             </div>
           ) : (
-            posts.map((post) => {
-              const badge = badges.get(post.id) ?? null;
-              return (
+            posts.map((post) => (
               <Link
                 key={post.id}
                 href={`/bbs/${post.id}`}
@@ -272,11 +268,6 @@ export default async function HomePage({
                     {post.todayDeal && untilLabel(post.endAt) && (
                       <span className="absolute top-0 right-0 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-1 rounded-bl-lg shadow-lg">
                         ⏰ 오늘특가 {untilLabel(post.endAt)}
-                      </span>
-                    )}
-                    {badge?.isLowestNow && (
-                      <span className="absolute bottom-0 right-0 bg-green-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-tl-lg shadow-lg">
-                        최저가
                       </span>
                     )}
                     {post.soldOut && (
@@ -307,11 +298,6 @@ export default async function HomePage({
                         {post.originalPrice.toLocaleString()}
                       </span>
                     )}
-                    {badge?.isLowestNow && (
-                      <span className="text-[10px] bg-green-600/15 text-green-700 px-1.5 py-0.5 rounded font-semibold">
-                        30일 최저
-                      </span>
-                    )}
                     {isNew(post.createdAt) && (
                       <span className="text-[10px] bg-red-600/20 text-red-600 px-1.5 py-0.5 rounded font-semibold">
                         NEW
@@ -327,8 +313,7 @@ export default async function HomePage({
                   </div>
                 </div>
               </Link>
-              );
-            })
+            ))
           )}
         </div>
       </main>
