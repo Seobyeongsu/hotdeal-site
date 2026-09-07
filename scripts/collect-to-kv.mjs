@@ -59,6 +59,7 @@ async function kvGet(key) {
   }
 }
 
+let TOTAL_PUTS = 0;
 async function kvPut(key, value) {
   try {
     const env = loadEnv();
@@ -72,6 +73,7 @@ async function kvPut(key, value) {
       log(`  KV put 실패 (${key}): HTTP ${res.status}`);
       return false;
     }
+    TOTAL_PUTS++;
     return true;
   } catch (e) {
     log(`  KV put 오류 (${key}): ${e.message}`);
@@ -213,7 +215,6 @@ async function cleanupDeadPosts(tossToken, index, bestMap) {
   const deadIds = new Set();
   for (const { post, reason } of dead) {
     await kvDelete(`post:${post.id}`);
-    if (post.tacaItemId) await kvDelete(`post:taca:${post.tacaItemId}`);
     deadIds.add(post.id);
     log(`  🗑️ [${reason}] ${String(post.title).slice(0, 35)}`);
   }
@@ -241,11 +242,18 @@ async function recordPrice(item) {
   try { if (raw) history = JSON.parse(raw); } catch {}
   const today = new Date().toISOString().slice(0, 10);
   const last = history[history.length - 1];
-  if (last && last.d === today) last.p = price;
-  else if (!last || last.p !== price) history.push({ d: today, p: price });
-  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
-  history = history.filter((h) => new Date(h.d).getTime() >= cutoff).slice(-30);
-  if (history.length) await kvPut(key, history);
+  let changed = false;
+  if (last && last.d === today) {
+    if (last.p !== price) { last.p = price; changed = true; }
+  } else if (!last || last.p !== price) {
+    history.push({ d: today, p: price });
+    changed = true;
+  }
+  if (changed) {
+    const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+    history = history.filter((h) => new Date(h.d).getTime() >= cutoff).slice(-30);
+    await kvPut(key, history);
+  }
 }
 
 async function main() {
@@ -302,13 +310,18 @@ async function main() {
   } catch { index = []; }
 
   const bestMap = new Map(items.map((i) => [Number(i.tacaItemId), i]).filter(([k]) => k));
+  const indexTacaIds = new Set(index.map((p) => Number(p.tacaItemId)).filter(Boolean));
   let removed = [];
   let refreshed = 0;
   try {
     const res = await cleanupDeadPosts(tossToken, index, bestMap);
     removed = res.dead;
     refreshed = res.refreshed;
-    if (res.deadIds.size) index = index.filter((p) => !res.deadIds.has(p.id));
+    if (res.deadIds.size) {
+      index = index.filter((p) => !res.deadIds.has(p.id));
+      indexTacaIds.clear();
+      for (const p of index) { const t = Number(p.tacaItemId); if (t) indexTacaIds.add(t); }
+    }
   } catch (e) {
     log(`  ⚠️ 정리 단계 실패(건너뜀): ${e.message}`);
   }
@@ -323,8 +336,7 @@ async function main() {
 
       await recordPrice(item);
 
-      const existing = await kvGet(`post:taca:${item.tacaItemId}`);
-      if (existing) { skipped++; continue; }
+      if (indexTacaIds.has(Number(item.tacaItemId))) { skipped++; continue; }
 
       let shortUrl = '';
       try {
@@ -361,9 +373,9 @@ async function main() {
       };
 
       await kvPut(`post:${postId}`, post);
-      await kvPut(`post:taca:${item.tacaItemId}`, '1');
       index = index.filter((p) => p.id !== postId);
       index.unshift(post);
+      indexTacaIds.add(Number(item.tacaItemId));
       created++;
       log(`  ✅ ${item.displayName.slice(0, 30)}... ${item.displayPrice}원`);
     } catch (e) {
@@ -384,7 +396,7 @@ async function main() {
   const rfInfo = refreshed ? `🔄 가격갱신: ${refreshed}건\n` : '';
   const soldOutCount = index.filter((p) => p.soldOut).length;
   const soInfo = soldOutCount ? `📦 품절 표시: ${soldOutCount}건\n` : '';
-  const summary = `✅ <b>수집 완료</b>\n\n📊 신규: ${created}건\n⏭️ 기존: ${skipped}건\n❌ 링크실패: ${linkFailed}건\n${rmInfo}${rfInfo}${soInfo}📦 총 ${items.length}건 조회`;
+  const summary = `✅ <b>수집 완료</b>\n\n📊 신규: ${created}건\n⏭️ 기존: ${skipped}건\n❌ 링크실패: ${linkFailed}건\n${rmInfo}${rfInfo}${soInfo}📦 총 ${items.length}건 조회\n🖊️ KV write: ${TOTAL_PUTS}건`;
   log(summary.replace(/<[^>]+>/g, ''));
   await sendTelegram(tgToken, chatId, summary);
 }
