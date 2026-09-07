@@ -135,6 +135,30 @@ async function fetchAllBest(token, pageSize = 100, maxPages = 5) {
   return all;
 }
 
+async function fetchTodayDealsPage(token, size = 30, cursor) {
+  const q = new URLSearchParams({ size: String(size) });
+  if (cursor) q.set('cursor', cursor);
+  const res = await fetch(`${TOSS_API_BASE}/openapi/products/today-deals?${q.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 403) throw new Error('ACCESS_DENIED: IP가 화이트리스트에 없습니다');
+  const json = await res.json();
+  if (json.resultType !== 'SUCCESS') throw new Error(json.error?.reason || '조회 실패');
+  return json.success || {};
+}
+
+async function fetchAllTodayDeals(token, maxPages = 12) {
+  const all = [];
+  let cursor = null;
+  for (let page = 0; page < maxPages; page++) {
+    const s = await fetchTodayDealsPage(token, 30, cursor);
+    all.push(...(s.items || []));
+    if (!s.hasNext || !s.nextCursor) break;
+    cursor = s.nextCursor;
+  }
+  return all;
+}
+
 async function fetchDetail(token, tacaItemIds) {
   const q = new URLSearchParams({ tacaItemIds: tacaItemIds.join(',') });
   const res = await fetch(`${TOSS_API_BASE}/openapi/products/detail?${q.toString()}`, {
@@ -153,7 +177,7 @@ async function fetchDetail(token, tacaItemIds) {
   return map;
 }
 
-async function cleanupDeadPosts(tossToken, index, bestMap) {
+async function cleanupDeadPosts(tossToken, index, bestMap, todayMap) {
   const ttlDays = Number(loadEnv().POST_TTL_DAYS || 60);
   const ttlCutoff = Date.now() - ttlDays * 86400000;
   const dead = [];
@@ -168,13 +192,42 @@ async function cleanupDeadPosts(tossToken, index, bestMap) {
     }
     const tid = Number(p.tacaItemId);
     if (!tid) continue;
-    if (bestMap.has(tid)) {
-      const nowOut = bestMap.get(tid).isSoldOut === true;
-      if (!!p.soldOut !== nowOut) {
-        p.soldOut = nowOut || null;
-        await kvPut(`post:${p.id}`, p);
-        log(`  ${nowOut ? '📦 품절 표시' : '🟢 품절 해제'}: ${String(p.title).slice(0, 35)}`);
+    if (p.todayDeal && p.endAt) {
+      const end = new Date(p.endAt).getTime();
+      if (Number.isFinite(end) && end <= Date.now()) {
+        dead.push({ post: p, reason: '특가종료' });
+        continue;
       }
+    }
+    let live = null;
+    if (p.todayDeal || todayMap.has(tid)) live = todayMap.get(tid) || null;
+    else if (bestMap.has(tid)) live = bestMap.get(tid);
+    if (live) {
+      const nowOut = live.isSoldOut === true;
+      let changed = false;
+      if (!!p.soldOut !== nowOut) { p.soldOut = nowOut || null; changed = true; }
+      if (!p.todayDeal && todayMap.has(tid)) {
+        p.todayDeal = true;
+        p.endAt = live.endAt || null;
+        changed = true;
+        log(`  ⏰ 하루특가 전환: ${String(p.title).slice(0, 35)}`);
+      } else if (p.todayDeal && todayMap.has(tid) && live.endAt && p.endAt !== live.endAt) {
+        p.endAt = live.endAt;
+        changed = true;
+      }
+      const np = live.displayPrice != null ? Number(live.displayPrice) : null;
+      if (np != null && p.price !== np) {
+        p.price = np;
+        if (live.originalPrice != null) p.originalPrice = Number(live.originalPrice);
+        if (live.discountRate != null) p.discountRate = Number(live.discountRate);
+        if (live.originalPrice != null && np != null && Number(live.originalPrice) > np) {
+          p.merchant = `${Number(live.originalPrice).toLocaleString()}원 →`;
+        }
+        await recordPrice({ tacaItemId: tid, displayPrice: np });
+        refreshed++;
+        changed = true;
+      }
+      if (changed) await kvPut(`post:${p.id}`, p);
       continue;
     }
     toCheck.push({ post: p, tid });
@@ -219,6 +272,64 @@ async function cleanupDeadPosts(tossToken, index, bestMap) {
     log(`  🗑️ [${reason}] ${String(post.title).slice(0, 35)}`);
   }
   return { deadIds, dead, refreshed };
+}
+
+async function registerItems(tossToken, publisherId, items, index, indexTacaIds, opts = {}) {
+  const { todayDeal = false } = opts;
+  let created = 0;
+  let skipped = 0;
+  let linkFailed = 0;
+  for (const item of items) {
+    try {
+      if (!item.tacaItemId || !item.displayName) continue;
+      await recordPrice(item);
+      if (indexTacaIds.has(Number(item.tacaItemId))) { skipped++; continue; }
+      let shortUrl = '';
+      try {
+        const link = await createShareLink(tossToken, item.tacaItemId, publisherId);
+        shortUrl = link.shortUrl || '';
+      } catch (e) {
+        linkFailed++;
+        continue;
+      }
+      const postId = `toss-${item.tacaItemId}`;
+      const post = {
+        id: postId,
+        title: `토스) ${item.displayName}`,
+        description: '',
+        image: item.thumbnailUrl || '',
+        url: shortUrl,
+        price: item.displayPrice != null ? Number(item.displayPrice) : null,
+        originalPrice: item.originalPrice != null ? Number(item.originalPrice) : null,
+        discountRate: item.discountRate != null ? Number(item.discountRate) : null,
+        rating: item.reviewScore != null ? Number(item.reviewScore) : null,
+        reviewCount: item.reviewCount != null ? Number(item.reviewCount) : null,
+        categoryName: null,
+        rank: item.rank != null ? Number(item.rank) : null,
+        arrivalDate: null,
+        merchant: item.originalPrice && item.displayPrice && item.originalPrice > item.displayPrice
+          ? `${Number(item.originalPrice).toLocaleString()}원 →` : null,
+        source: '토스',
+        soldOut: item.isSoldOut === true ? true : null,
+        todayDeal: todayDeal ? true : null,
+        endAt: todayDeal ? (item.endAt || null) : null,
+        tacaItemId: Number(item.tacaItemId),
+        author: '자동수집',
+        createdAt: new Date().toISOString(),
+        views: 0,
+      };
+      await kvPut(`post:${postId}`, post);
+      index = index.filter((p) => p.id !== postId);
+      index.unshift(post);
+      indexTacaIds.add(Number(item.tacaItemId));
+      created++;
+      log(`  ✅${todayDeal ? '[하루특가] ' : ''}${String(item.displayName).slice(0, 30)}... ${item.displayPrice}원`);
+    } catch (e) {
+      log(`  ⚠️ ${item.displayName}: ${e.message}`);
+      linkFailed++;
+    }
+  }
+  return { created, skipped, linkFailed, index };
 }
 
 async function createShareLink(token, tacaItemId, publisherId) {
@@ -300,6 +411,14 @@ async function main() {
     process.exit(1);
   }
 
+  let todayItems = [];
+  try {
+    todayItems = await fetchAllTodayDeals(tossToken);
+    log(`✅ 하루특가 상품 ${todayItems.length}개 조회`);
+  } catch (e) {
+    log(`⚠️ 하루특가 조회 실패(베스트만 진행): ${e.message}`);
+  }
+
   const publisherId = env.TOSS_PUBLISHER_ID || env.TOSS_MEMBER_ID;
 
   let indexRaw = await kvGet('posts:index');
@@ -310,11 +429,12 @@ async function main() {
   } catch { index = []; }
 
   const bestMap = new Map(items.map((i) => [Number(i.tacaItemId), i]).filter(([k]) => k));
+  const todayMap = new Map(todayItems.map((i) => [Number(i.tacaItemId), i]).filter(([k]) => k));
   const indexTacaIds = new Set(index.map((p) => Number(p.tacaItemId)).filter(Boolean));
   let removed = [];
   let refreshed = 0;
   try {
-    const res = await cleanupDeadPosts(tossToken, index, bestMap);
+    const res = await cleanupDeadPosts(tossToken, index, bestMap, todayMap);
     removed = res.dead;
     refreshed = res.refreshed;
     if (res.deadIds.size) {
@@ -326,63 +446,14 @@ async function main() {
     log(`  ⚠️ 정리 단계 실패(건너뜀): ${e.message}`);
   }
 
-  let created = 0;
-  let skipped = 0;
-  let linkFailed = 0;
+  const resBest = await registerItems(tossToken, publisherId, items, index, indexTacaIds, { todayDeal: false });
+  index = resBest.index;
+  const resToday = await registerItems(tossToken, publisherId, todayItems, index, indexTacaIds, { todayDeal: true });
+  index = resToday.index;
 
-  for (const item of items) {
-    try {
-      if (!item.tacaItemId || !item.displayName) continue;
-
-      await recordPrice(item);
-
-      if (indexTacaIds.has(Number(item.tacaItemId))) { skipped++; continue; }
-
-      let shortUrl = '';
-      try {
-        const link = await createShareLink(tossToken, item.tacaItemId, publisherId);
-        shortUrl = link.shortUrl || '';
-      } catch (e) {
-        linkFailed++;
-        continue;
-      }
-
-      const postId = `toss-${item.tacaItemId}`;
-      const post = {
-        id: postId,
-        title: `토스) ${item.displayName}`,
-        description: '',
-        image: item.thumbnailUrl || '',
-        url: shortUrl,
-        price: item.displayPrice != null ? Number(item.displayPrice) : null,
-        originalPrice: item.originalPrice != null ? Number(item.originalPrice) : null,
-        discountRate: item.discountRate != null ? Number(item.discountRate) : null,
-        rating: item.reviewScore != null ? Number(item.reviewScore) : null,
-        reviewCount: item.reviewCount != null ? Number(item.reviewCount) : null,
-        categoryName: null,
-        rank: item.rank != null ? Number(item.rank) : null,
-        arrivalDate: null,
-        merchant: item.originalPrice && item.displayPrice && item.originalPrice > item.displayPrice
-          ? `${Number(item.originalPrice).toLocaleString()}원 →` : null,
-        source: '토스',
-        soldOut: item.isSoldOut === true ? true : null,
-        tacaItemId: Number(item.tacaItemId),
-        author: '자동수집',
-        createdAt: new Date().toISOString(),
-        views: 0,
-      };
-
-      await kvPut(`post:${postId}`, post);
-      index = index.filter((p) => p.id !== postId);
-      index.unshift(post);
-      indexTacaIds.add(Number(item.tacaItemId));
-      created++;
-      log(`  ✅ ${item.displayName.slice(0, 30)}... ${item.displayPrice}원`);
-    } catch (e) {
-      log(`  ⚠️ ${item.displayName}: ${e.message}`);
-      linkFailed++;
-    }
-  }
+  const created = resBest.created + resToday.created;
+  const skipped = resBest.skipped + resToday.skipped;
+  const linkFailed = resBest.linkFailed + resToday.linkFailed;
 
   index = index.slice(0, 500);
   await kvPut('posts:index', index);
@@ -396,7 +467,9 @@ async function main() {
   const rfInfo = refreshed ? `🔄 가격갱신: ${refreshed}건\n` : '';
   const soldOutCount = index.filter((p) => p.soldOut).length;
   const soInfo = soldOutCount ? `📦 품절 표시: ${soldOutCount}건\n` : '';
-  const summary = `✅ <b>수집 완료</b>\n\n📊 신규: ${created}건\n⏭️ 기존: ${skipped}건\n❌ 링크실패: ${linkFailed}건\n${rmInfo}${rfInfo}${soInfo}📦 총 ${items.length}건 조회\n🖊️ KV write: ${TOTAL_PUTS}건`;
+  const todayCount = index.filter((p) => p.todayDeal).length;
+  const tdInfo = todayCount ? `⏰ 하루특가 게시: ${todayCount}건\n` : '';
+  const summary = `✅ <b>수집 완료</b>\n\n📊 신규: ${created}건 (베스트 ${resBest.created} / 하루특가 ${resToday.created})\n⏭️ 기존: ${skipped}건\n❌ 링크실패: ${linkFailed}건\n${rmInfo}${rfInfo}${soInfo}${tdInfo}📦 조회: 베스트 ${items.length} / 하루특가 ${todayItems.length}건\n🖊️ KV write: ${TOTAL_PUTS}건`;
   log(summary.replace(/<[^>]+>/g, ''));
   await sendTelegram(tgToken, chatId, summary);
 }

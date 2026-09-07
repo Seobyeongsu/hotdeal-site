@@ -20,6 +20,17 @@ function isNew(iso: string): boolean {
   return Date.now() - new Date(iso).getTime() < 24 * 3600 * 1000;
 }
 
+function untilLabel(endAt?: string | null): string {
+  if (!endAt) return '';
+  const ms = new Date(endAt).getTime() - Date.now();
+  if (ms <= 0) return '';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `${min}분`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간`;
+  return `${Math.floor(hr / 24)}일`;
+}
+
 const SORT_KEYS = ['discount', 'review', 'rating'] as const;
 
 function sortPosts<T extends { discountRate: number | null; reviewCount: number | null; rating: number | null }>(
@@ -236,6 +247,11 @@ export default async function HomePage({
                     {post.discountRate != null && post.discountRate > 0 && (
                       <span className="absolute top-0 left-0 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-br-lg shadow-lg">
                         {post.discountRate}%
+                      </span>
+                    )}
+                    {post.todayDeal && untilLabel(post.endAt) && (
+                      <span className="absolute top-0 right-0 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-1 rounded-bl-lg shadow-lg">
+                        ⏰ 오늘특가 {untilLabel(post.endAt)}
                       </span>
                     )}
                     {badge?.isLowestNow && (

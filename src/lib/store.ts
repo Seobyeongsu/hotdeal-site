@@ -19,6 +19,8 @@ export interface BoardPost {
   merchant: string | null;
   source: string;
   soldOut?: boolean | null;
+  todayDeal?: boolean | null;
+  endAt?: string | null;
   author: string;
   createdAt: string;
   views: number;

@@ -8,6 +8,17 @@ import ProductActions from '@/components/ProductActions';
 
 export const dynamic = 'force-dynamic';
 
+function untilLabel(endAt?: string | null): string {
+  if (!endAt) return '';
+  const ms = new Date(endAt).getTime() - Date.now();
+  if (ms <= 0) return '';
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `${min}분`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간`;
+  return `${Math.floor(hr / 24)}일`;
+}
+
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const post = await getPost(id);
@@ -51,6 +62,11 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
 
           <div className="p-5 space-y-4">
             <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+              {post.todayDeal && untilLabel(post.endAt) && (
+                <span className="bg-orange-500 text-white text-sm font-bold px-2.5 py-1 rounded-lg self-center">
+                  ⏰ 오늘특가 · {untilLabel(post.endAt)} 남음
+                </span>
+              )}
               {post.discountRate != null && post.discountRate > 0 && (
                 <span className="bg-red-600 text-white text-sm font-bold px-2.5 py-1 rounded-lg self-center">
                   {post.discountRate}% <span className="text-[10px] font-normal opacity-90">OFF</span>
@@ -91,6 +107,9 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
                 </span>
               )}
               {post.arrivalDate && <span className="text-gray-500">📦 {post.arrivalDate} 도착예정</span>}
+              {post.todayDeal && post.endAt && (
+                <span className="text-gray-500">⏰ {new Date(post.endAt).toLocaleString('ko-KR')}까지</span>
+              )}
             </div>
 
             {post.description && (
