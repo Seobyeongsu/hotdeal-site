@@ -189,7 +189,7 @@ export default async function HomePage({
           <span className="text-xs text-gray-600">총 {posts.length}개</span>
         </div>
 
-        {cats.length > 0 && (
+        {(cats.length > 0 || hasToday) && (
           <div className="flex flex-wrap gap-1.5 mb-2">
             {(['전체', ...(hasToday ? ['오늘의 특가'] : []), ...cats] as string[]).map((c) => (
               <Link

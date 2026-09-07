@@ -177,7 +177,33 @@ async function fetchDetail(token, tacaItemIds) {
   return map;
 }
 
-async function cleanupDeadPosts(tossToken, index, bestMap, todayMap) {
+async function fetchCategoryMap(token) {
+  const res = await fetch(`${TOSS_API_BASE}/openapi/categories`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 403) throw new Error('ACCESS_DENIED: IP가 화이트리스트에 없습니다');
+  const json = await res.json();
+  if (json.resultType !== 'SUCCESS') throw new Error(json.error?.reason || '카테고리 조회 실패');
+  const map = new Map();
+  const walk = (nodes) => {
+    for (const n of nodes || []) {
+      map.set(n.categoryId, { name: n.displayName, level: n.level });
+      if (n.children?.length) walk(n.children);
+    }
+  };
+  walk(json.success?.categories || []);
+  return map;
+}
+
+function resolveL1Category(categoryIds, map) {
+  for (const id of categoryIds || []) {
+    const hit = map.get(id);
+    if (hit?.level === 1) return hit.name;
+  }
+  return null;
+}
+
+async function cleanupDeadPosts(tossToken, index, bestMap, todayMap, categoryMap) {
   const ttlDays = Number(loadEnv().POST_TTL_DAYS || 60);
   const ttlCutoff = Date.now() - ttlDays * 86400000;
   const dead = [];
@@ -216,6 +242,10 @@ async function cleanupDeadPosts(tossToken, index, bestMap, todayMap) {
         changed = true;
       }
       const np = live.displayPrice != null ? Number(live.displayPrice) : null;
+      if (!p.categoryName && categoryMap) {
+        const catName = resolveL1Category(live.categoryIds, categoryMap);
+        if (catName) { p.categoryName = catName; changed = true; }
+      }
       if (np != null && p.price !== np) {
         p.price = np;
         if (live.originalPrice != null) p.originalPrice = Number(live.originalPrice);
@@ -249,6 +279,10 @@ async function cleanupDeadPosts(tossToken, index, bestMap, todayMap) {
       const nowOut = d.isSoldOut === true;
       const np = d.displayPrice != null ? Number(d.displayPrice) : null;
       let changed = false;
+      if (!post.categoryName && categoryMap) {
+        const catName = resolveL1Category(d.categoryIds, categoryMap);
+        if (catName) { post.categoryName = catName; changed = true; }
+      }
       if (!!post.soldOut !== nowOut) { post.soldOut = nowOut || null; changed = true; }
       if (np != null && post.price !== np) {
         post.price = np;
@@ -275,7 +309,7 @@ async function cleanupDeadPosts(tossToken, index, bestMap, todayMap) {
 }
 
 async function registerItems(tossToken, publisherId, items, index, indexTacaIds, opts = {}) {
-  const { todayDeal = false } = opts;
+  const { todayDeal = false, categoryMap = null } = opts;
   let created = 0;
   let skipped = 0;
   let linkFailed = 0;
@@ -304,7 +338,7 @@ async function registerItems(tossToken, publisherId, items, index, indexTacaIds,
         discountRate: item.discountRate != null ? Number(item.discountRate) : null,
         rating: item.reviewScore != null ? Number(item.reviewScore) : null,
         reviewCount: item.reviewCount != null ? Number(item.reviewCount) : null,
-        categoryName: null,
+        categoryName: categoryMap ? resolveL1Category(item.categoryIds, categoryMap) : null,
         rank: item.rank != null ? Number(item.rank) : null,
         arrivalDate: null,
         merchant: item.originalPrice && item.displayPrice && item.originalPrice > item.displayPrice
@@ -421,6 +455,14 @@ async function main() {
 
   const publisherId = env.TOSS_PUBLISHER_ID || env.TOSS_MEMBER_ID;
 
+  let categoryMap = null;
+  try {
+    categoryMap = await fetchCategoryMap(tossToken);
+    log(`✅ 카테고리 트리 ${categoryMap.size}개 로드`);
+  } catch (e) {
+    log(`⚠️ 카테고리 로드 실패(카테고리 미저장): ${e.message}`);
+  }
+
   let indexRaw = await kvGet('posts:index');
   let index = [];
   try {
@@ -434,7 +476,7 @@ async function main() {
   let removed = [];
   let refreshed = 0;
   try {
-    const res = await cleanupDeadPosts(tossToken, index, bestMap, todayMap);
+    const res = await cleanupDeadPosts(tossToken, index, bestMap, todayMap, categoryMap);
     removed = res.dead;
     refreshed = res.refreshed;
     if (res.deadIds.size) {
@@ -446,9 +488,9 @@ async function main() {
     log(`  ⚠️ 정리 단계 실패(건너뜀): ${e.message}`);
   }
 
-  const resBest = await registerItems(tossToken, publisherId, items, index, indexTacaIds, { todayDeal: false });
+  const resBest = await registerItems(tossToken, publisherId, items, index, indexTacaIds, { todayDeal: false, categoryMap });
   index = resBest.index;
-  const resToday = await registerItems(tossToken, publisherId, todayItems, index, indexTacaIds, { todayDeal: true });
+  const resToday = await registerItems(tossToken, publisherId, todayItems, index, indexTacaIds, { todayDeal: true, categoryMap });
   index = resToday.index;
 
   const created = resBest.created + resToday.created;
