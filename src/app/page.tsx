@@ -64,10 +64,24 @@ export default async function HomePage({
   const allPosts = await listPosts();
   const badges = await getPriceBadges(allPosts);
   const cats = Array.from(new Set(allPosts.map((p) => p.categoryName).filter(Boolean) as string[]));
-  const activeCat = cat && cats.includes(cat) ? cat : '전체';
-  const basePosts = (activeCat === '전체' ? allPosts : allPosts.filter((p) => p.categoryName === activeCat))
-    .filter((p) => !activeQ || p.title.toLowerCase().includes(activeQ.toLowerCase()));
-  const posts = sortPosts(basePosts, activeSort);
+  const isTodayTab = cat === '오늘의 특가';
+  const activeCat = isTodayTab || cats.includes((cat as string) || '') ? (cat as string) : '전체';
+  const liveToday = (p: { todayDeal?: boolean | null; endAt?: string | null }) =>
+    p.todayDeal === true && (!p.endAt || new Date(p.endAt).getTime() > Date.now());
+  const hasToday = allPosts.some(liveToday);
+  const scoped = isTodayTab
+    ? allPosts.filter(liveToday)
+    : activeCat === '전체'
+      ? activeQ
+        ? allPosts
+        : allPosts.filter((p) => !liveToday(p))
+      : allPosts.filter((p) => p.categoryName === activeCat && !liveToday(p));
+  const basePosts = scoped.filter((p) => !activeQ || p.title.toLowerCase().includes(activeQ.toLowerCase()));
+  const endMs = (p: { endAt?: string | null }) =>
+    p.endAt ? new Date(p.endAt).getTime() : Number.MAX_SAFE_INTEGER;
+  const posts = isTodayTab && !activeSort
+    ? [...basePosts].sort((a, b) => endMs(a) - endMs(b))
+    : sortPosts(basePosts, activeSort);
   const href = (c: string, s: string) => {
     const q = new URLSearchParams();
     if (c !== '전체') q.set('cat', c);
@@ -84,7 +98,7 @@ export default async function HomePage({
     return qs ? `/?${qs}` : '/';
   };
   const featuredPosts = [...allPosts]
-    .filter((post) => post.price != null && post.price > 0)
+    .filter((post) => post.price != null && post.price > 0 && !liveToday(post))
     .sort((a, b) => {
       const discountDiff = (b.discountRate ?? 0) - (a.discountRate ?? 0);
       return discountDiff || (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER);
@@ -164,14 +178,20 @@ export default async function HomePage({
 
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold flex items-center gap-2">
-            {activeQ ? `'${activeQ}' 검색 결과` : '전체 핫딜'}
+            {activeQ
+              ? `'${activeQ}' 검색 결과`
+              : activeCat === '오늘의 특가'
+                ? '오늘의 특가'
+                : activeCat === '전체'
+                  ? '전체 핫딜'
+                  : activeCat}
           </h2>
           <span className="text-xs text-gray-600">총 {posts.length}개</span>
         </div>
 
         {cats.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
-            {['전체', ...cats].map((c) => (
+            {(['전체', ...(hasToday ? ['오늘의 특가'] : []), ...cats] as string[]).map((c) => (
               <Link
                 key={c}
                 href={href(c, activeSort)}
