@@ -5,16 +5,12 @@ import { useState } from 'react';
 export default function ProductActions({ url, source, title }: { url: string; source: string; title?: string }) {
   const [copied, setCopied] = useState(false);
 
-  const disclosure =
-    source === '토스'
-      ? '이 콘텐츠는 토스쇼핑 쉐어링크 활동의 일환으로, 링크를 통한 구매가 발생하면 일정 수수료를 지급받습니다.'
-      : '';
-  const shareText = [title, url, disclosure].filter(Boolean).join('\n\n');
+  const shareText = [title, url].filter(Boolean).join('\n\n');
 
   const share = async () => {
     try {
       if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({ title: title || document.title, text: disclosure, url });
+        await navigator.share({ title: title || document.title, url });
         return;
       }
       throw new Error('no-share-api');
