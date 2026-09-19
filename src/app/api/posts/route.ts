@@ -4,9 +4,19 @@ import { parseTossLink, isTossLink } from '@/lib/toss';
 import { enrichDealPrice } from '@/lib/toss-api';
 import { isAdminRequest } from '@/lib/auth';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function GET() {
   const posts = await listPosts();
-  return NextResponse.json(posts);
+  return NextResponse.json(posts, { headers: CORS_HEADERS });
 }
 
 export async function POST(request: NextRequest) {
